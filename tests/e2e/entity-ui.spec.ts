@@ -56,6 +56,11 @@ test('los formularios guardan áreas, intereses, cambios de frecuencia y sesione
   await dialog.getByLabel(/^Atender cada cuántos días/).fill('14');
   await dialog.getByLabel('Estado', { exact: true }).selectOption('paused');
   await dialog.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
+  const savedInterestDetail = page.getByRole('dialog', { name: interestName, exact: true });
+  await expect(savedInterestDetail).toBeVisible();
+  await expect(savedInterestDetail.locator('.badge').first()).toHaveText('En pausa');
+  await savedInterestDetail.getByRole('button', { name: 'Cerrar diálogo' }).click();
+  await expect(savedInterestDetail).not.toBeVisible();
   await expect(recordCard(page, interestName)).toContainText('Cada 14 días');
   await expect(recordCard(page, interestName).locator('.badge').first()).toHaveText('En pausa');
 
