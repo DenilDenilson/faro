@@ -1,8 +1,10 @@
 import { defineConfig } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 mkdirSync('work', { recursive: true });
 const port = 4322;
+const localChromium =
+  process.env.CHROMIUM_PATH ?? (existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined);
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
@@ -13,9 +15,7 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${port}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    launchOptions: process.env.CI
-      ? {}
-      : { executablePath: process.env.CHROMIUM_PATH ?? '/usr/bin/chromium' },
+    launchOptions: !process.env.CI && localChromium ? { executablePath: localChromium } : {},
   },
   webServer: {
     command: `pnpm dev --port ${port} --ignore-lock`,
