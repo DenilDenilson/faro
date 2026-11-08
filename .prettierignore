@@ -1,0 +1,9 @@
+node_modules
+.astro
+.vercel
+dist
+pnpm-lock.yaml
+drizzle/meta
+playwright-report
+test-results
+

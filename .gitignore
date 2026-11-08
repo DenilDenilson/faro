@@ -1,0 +1,16 @@
+node_modules/
+.astro/
+.vercel/
+dist/
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+playwright-report/
+test-results/
+work/
+.DS_Store
+
