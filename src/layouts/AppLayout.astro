@@ -1,0 +1,239 @@
+---
+import '../styles/global.css';
+import type { FaroSnapshot } from '../lib/types';
+import {
+  House,
+  Compass,
+  Layers3,
+  Sprout,
+  Target,
+  Repeat2,
+  FolderKanban,
+  ChartNoAxesCombined,
+  CalendarCheck2,
+  History,
+  BookOpen,
+  Bell,
+  Settings2,
+  Plus,
+  LockKeyhole,
+  Menu,
+  Activity,
+  Telescope,
+  Flag,
+} from 'lucide-react';
+import Timer from '../components/Timer';
+interface Props {
+  title: string;
+  subtitle?: string;
+  snapshot: FaroSnapshot;
+}
+const { title, subtitle, snapshot } = Astro.props;
+const pathname = Astro.url.pathname;
+const groups = [
+  {
+    label: 'Tu día',
+    items: [
+      { href: '/', label: 'Hoy', icon: House },
+      { href: '/activities', label: 'Mis actividades', icon: Activity },
+    ],
+  },
+  {
+    label: 'Mi vida',
+    items: [
+      { href: '/attention', label: 'Radar de atención', icon: Compass },
+      { href: '/areas', label: 'Áreas de vida', icon: Layers3 },
+      { href: '/interests', label: 'Intereses', icon: Sprout },
+      { href: '/habits', label: 'Hábitos', icon: Repeat2 },
+      { href: '/goals', label: 'Objetivos', icon: Target },
+      { href: '/projects', label: 'Proyectos', icon: FolderKanban },
+      { href: '/seasons', label: 'Temporadas', icon: Flag },
+    ],
+  },
+  {
+    label: 'Mi evolución',
+    items: [
+      { href: '/analytics', label: 'Estadísticas', icon: ChartNoAxesCombined },
+      { href: '/reviews', label: 'Revisión semanal', icon: CalendarCheck2 },
+      { href: '/timeline', label: 'Historial de vida', icon: History },
+      { href: '/learnings', label: 'Aprendizajes', icon: BookOpen },
+    ],
+  },
+];
+const today = new Intl.DateTimeFormat('es-PE', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: snapshot.settings.timezone,
+}).format(new Date(snapshot.generatedAt));
+const theme = snapshot.settings.theme;
+const timerSnapshot = {
+  ...snapshot,
+  records: snapshot.records
+    .filter((record) => ['interests', 'habits', 'projects', 'goals'].includes(record.type))
+    .map((record) => ({
+      id: record.id,
+      type: record.type,
+      name: record.name,
+      description: '',
+      status: record.status,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    })),
+  history: [],
+};
+---
+
+<!doctype html>
+<html lang="es" data-theme={theme}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="FARO, tu espacio privado para cultivar intereses y comprender tu evolución."
+    />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>{title} · FARO</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">
+      Ir al contenido
+    </a>
+    <aside class="app-sidebar" aria-label="Navegación principal">
+      <a class="brand" href="/" aria-label="FARO, inicio">
+        <span class="brand-symbol">
+          <Telescope size={23} strokeWidth={1.8} />
+        </span>
+        FARO
+      </a>
+      <p class="brand-note">Cultiva lo que te mueve.</p>
+      <nav>
+        {groups.map((group) => (
+          <div class="nav-group">
+            <p class="nav-label">{group.label}</p>
+            {group.items.map((item) => (
+              <a
+                class="nav-link"
+                href={item.href}
+                aria-current={pathname === item.href ? 'page' : undefined}
+              >
+                <item.icon size={17} strokeWidth={1.7} />
+                {item.label}
+              </a>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <div class="sidebar-footer">
+        <p class="sidebar-quote">
+          No tienes que hacerlo todo.
+          <br />
+          Solo saber qué estás cultivando.
+        </p>
+        <a
+          class="nav-link"
+          href="/alerts"
+          aria-current={pathname === '/alerts' ? 'page' : undefined}
+        >
+          <Bell size={17} />
+          Centro de alertas
+        </a>
+        <a
+          class="nav-link"
+          href="/settings"
+          aria-current={pathname === '/settings' ? 'page' : undefined}
+        >
+          <Settings2 size={17} />
+          Configuración
+        </a>
+        <div class="sidebar-bottom">
+          <span class="eyebrow">Tu espacio personal</span>
+          <form method="post" action="/api/auth/logout">
+            <button class="logout-button" type="submit">
+              Salir
+            </button>
+          </form>
+        </div>
+      </div>
+    </aside>
+    <header class="mobile-bar">
+      <a class="brand" href="/">
+        <span class="brand-symbol">
+          <Telescope size={19} />
+        </span>
+        FARO
+      </a>
+      <details class="mobile-menu">
+        <summary aria-label="Abrir navegación">
+          <Menu size={20} />
+        </summary>
+        <nav>
+          {groups.map((group) => (
+            <div class="nav-group">
+              <p class="nav-label">{group.label}</p>
+              {group.items.map((item) => (
+                <a
+                  class="nav-link"
+                  href={item.href}
+                  aria-current={pathname === item.href ? 'page' : undefined}
+                >
+                  <item.icon size={16} />
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          ))}
+          <div class="nav-group">
+            <p class="nav-label">Tu espacio</p>
+            <a class="nav-link" href="/alerts">
+              <Bell size={16} />
+              Alertas
+            </a>
+            <a class="nav-link" href="/settings">
+              <Settings2 size={16} />
+              Configuración
+            </a>
+            <form method="post" action="/api/auth/logout">
+              <button class="logout-button" type="submit">
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
+        </nav>
+      </details>
+    </header>
+    <main class="app-main" id="main-content">
+      <div class="content">
+        <div class="page-topline">
+          <span class="topline-date">{today}</span>
+          <div class="topline-actions">
+            <span class="private-label">
+              <LockKeyhole size={13} />
+              Espacio privado
+            </span>
+            <a class="button button-primary" href="/activities?new=1">
+              <Plus size={15} />
+              Registrar actividad
+            </a>
+          </div>
+        </div>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">
+              {pathname === '/' ? 'Un poco de perspectiva' : 'Tu espacio, a tu ritmo'}
+            </p>
+            <h1>{title}</h1>
+            {subtitle && <p class="page-subtitle">{subtitle}</p>}
+          </div>
+          <slot name="heading-actions" />
+        </div>
+        <slot />
+      </div>
+    </main>
+    <Timer client:load snapshot={timerSnapshot} />
+  </body>
+</html>

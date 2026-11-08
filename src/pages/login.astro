@@ -1,0 +1,240 @@
+---
+import { actions } from 'astro:actions';
+import { safeNext } from '../lib/auth';
+
+export const prerender = false;
+const result = Astro.getActionResult(actions.login);
+if (result?.data) return Astro.redirect(result.data.redirectTo, 303);
+if (Astro.locals.authenticated)
+  return Astro.redirect(safeNext(Astro.url.searchParams.get('next')), 303);
+const next = safeNext(Astro.url.searchParams.get('next'));
+const endpointError = Astro.url.searchParams.get('error');
+const message =
+  result?.error?.message ||
+  (endpointError === 'password'
+    ? 'La contraseña no es correcta.'
+    : endpointError === 'rate'
+      ? 'Demasiados intentos. Espera 15 minutos antes de volver a intentarlo.'
+      : null);
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#101715" />
+    <title>Entrar · FARO</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <main>
+      <a class="brand" href="/" aria-label="FARO, inicio">
+        <span class="symbol" aria-hidden="true">
+          ✳
+        </span>{' '}
+        FARO<span class="brand-dot">.</span>
+      </a>
+      <div class="eyebrow">UN ESPACIO PARA TU VIDA</div>
+      <h1>
+        Vuelve a<br />
+        <em>lo que importa.</em>
+      </h1>
+      <p class="intro">
+        Tus intereses, tus avances y todo lo que vas descubriendo. Un lugar para mantenerlos a la
+        vista.
+      </p>
+      <section class="access" aria-labelledby="access-title">
+        <div class="access-title">
+          <span aria-hidden="true">↗</span>
+          <h2 id="access-title">Tu espacio personal</h2>
+          <span class="private">PRIVADO</span>
+        </div>
+        <form method="POST" action={actions.login}>
+          <input type="hidden" name="next" value={next} />
+          <label for="password">Contraseña de acceso</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            maxlength="1024"
+            autofocus
+            aria-describedby={message ? 'login-error' : 'password-help'}
+            placeholder="Tu contraseña"
+          />
+          {message && (
+            <p id="login-error" role="alert" class="error">
+              {message}
+            </p>
+          )}
+          <button type="submit">
+            Entrar en FARO <span aria-hidden="true">→</span>
+          </button>
+          <p id="password-help" class="hint">
+            Solo tú tienes acceso a este espacio.
+          </p>
+        </form>
+      </section>
+      <footer>Un poco de atención. Una vida con más intención.</footer>
+    </main>
+  </body>
+</html>
+<style>
+  :global(*) {
+    box-sizing: border-box;
+  }
+  :global(body) {
+    margin: 0;
+    background: #101715;
+    color: #f0f3ec;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    width: min(100% - 3rem, 430px);
+    margin: 0 auto;
+    padding: clamp(2rem, 8vh, 5rem) 0 2rem;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.65rem;
+    letter-spacing: 0.14em;
+    font-weight: 750;
+    color: inherit;
+    text-decoration: none;
+  }
+  .symbol {
+    color: #c5dc9c;
+    font-size: 2rem;
+  }
+  .brand-dot {
+    color: #c5dc9c;
+    margin-left: -0.45rem;
+  }
+  .eyebrow {
+    font-size: 0.66rem;
+    letter-spacing: 0.2em;
+    color: #9aa49a;
+    margin-top: 3rem;
+    font-weight: 650;
+  }
+  h1 {
+    font-size: clamp(2.6rem, 9vw, 3.6rem);
+    line-height: 1.1;
+    font-weight: 450;
+    letter-spacing: -0.055em;
+    margin: 1rem 0 1.15rem;
+  }
+  h1 em {
+    font-family: Georgia, serif;
+    font-weight: 400;
+    color: #cedfae;
+  }
+  .intro {
+    color: #a9b2a8;
+    line-height: 1.75;
+    font-size: 0.94rem;
+    max-width: 375px;
+  }
+  .access {
+    margin-top: 2rem;
+    border: 1px solid #354035;
+    background: #19211c;
+    border-radius: 14px;
+    padding: 1.5rem;
+  }
+  .access-title {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 1.5rem;
+  }
+  .access-title > span:first-child {
+    color: #c5dc9c;
+  }
+  h2 {
+    font-size: 0.95rem;
+    font-weight: 550;
+    margin: 0;
+  }
+  .private {
+    font-size: 0.55rem;
+    letter-spacing: 0.1em;
+    color: #b9c5b1;
+    margin-left: auto;
+    border: 1px solid #45513f;
+    border-radius: 4px;
+    padding: 0.3rem 0.4rem;
+  }
+  label {
+    font-size: 0.78rem;
+    color: #c6cfc3;
+    display: block;
+    margin-bottom: 0.55rem;
+  }
+  input[type='password'] {
+    width: 100%;
+    border: 1px solid #42503f;
+    border-radius: 7px;
+    min-height: 48px;
+    padding: 0.75rem 0.9rem;
+    background: #111a14;
+    color: #f0f3ec;
+    font: inherit;
+    font-size: 0.9rem;
+  }
+  input:focus-visible,
+  button:focus-visible,
+  a:focus-visible {
+    outline: 3px solid #c5dc9c;
+    outline-offset: 3px;
+  }
+  button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    min-height: 48px;
+    background: #ccdfaa;
+    color: #182216;
+    border: 0;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #dfedc7;
+  }
+  .hint {
+    font-size: 0.69rem;
+    text-align: center;
+    color: #9ba696;
+    margin: 1rem 0 0;
+  }
+  .error {
+    color: #f5b0a0;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  footer {
+    font-size: 0.67rem;
+    color: #8a9888;
+    text-align: center;
+    margin-top: 2rem;
+    line-height: 1.7;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    button {
+      transition: background 0.15s;
+    }
+  }
+</style>

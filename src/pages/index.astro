@@ -1,0 +1,14 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import Overview from '../components/Overview';
+import { getSnapshot } from '../domains/data/repository';
+const snapshot = await getSnapshot();
+---
+
+<AppLayout
+  title="Hoy, con perspectiva."
+  subtitle="Un vistazo a lo que estás cultivando y a lo que merece un poco de atención."
+  snapshot={snapshot}
+>
+  <Overview snapshot={snapshot} />
+</AppLayout>

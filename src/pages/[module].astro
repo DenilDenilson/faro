@@ -1,0 +1,174 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import EntityManager from '../components/EntityManager';
+import AttentionRadar from '../components/AttentionRadar';
+import Analytics from '../components/Analytics';
+import Timeline from '../components/Timeline';
+import Alerts from '../components/Alerts';
+import { getSnapshot } from '../domains/data/repository';
+import {
+  metadataSnapshot as compactMetadata,
+  getEntityPage,
+  entitySummaries,
+} from '../domains/data/views';
+import { buildAnalytics } from '../domains/analytics';
+import { buildTimeline } from '../domains/timeline';
+import { attentionFor } from '../domains/attention';
+import { buildAlerts } from '../domains/notifications';
+import type { EntityType } from '../lib/types';
+const modules: Record<string, { title: string; subtitle: string; type?: EntityType }> = {
+  areas: {
+    title: 'Las dimensiones de tu vida.',
+    subtitle:
+      'Organiza lo que te importa. Cada área reúne intereses que comparten un lugar en tu vida.',
+    type: 'areas',
+  },
+  interests: {
+    title: 'Lo que te mueve.',
+    subtitle:
+      'Cultiva tu curiosidad a tu propio ritmo. Cada interés tiene su frecuencia y su historia.',
+    type: 'interests',
+  },
+  goals: {
+    title: 'Un norte propio.',
+    subtitle:
+      'Define los resultados que quieres alcanzar y registra avances concretos, más allá del tiempo invertido.',
+    type: 'goals',
+  },
+  habits: {
+    title: 'Pequeños actos, continuidad.',
+    subtitle:
+      'Construye constancia con frecuencias realistas. Pausar también forma parte del camino.',
+    type: 'habits',
+  },
+  projects: {
+    title: 'Ideas en movimiento.',
+    subtitle:
+      'Da forma a tus iniciativas con hitos, sesiones de trabajo y avances que puedas reconocer.',
+    type: 'projects',
+  },
+  activities: {
+    title: 'Lo que realmente haces.',
+    subtitle:
+      'Registra tus sesiones, conecta tus intereses y conserva una memoria fiel de tu tiempo.',
+    type: 'activities',
+  },
+  reviews: {
+    title: 'Una pausa para mirar.',
+    subtitle: 'Reconoce lo que cultivaste esta semana y decide qué quieres atender a continuación.',
+    type: 'reviews',
+  },
+  seasons: {
+    title: 'Cada etapa, su enfoque.',
+    subtitle:
+      'Elige qué priorizar, qué mantener y qué explorar. Tus intereses no tienen que pesar siempre igual.',
+    type: 'seasons',
+  },
+  learnings: {
+    title: 'Lo que vas descubriendo.',
+    subtitle:
+      'Un lugar para conservar ideas, conocimientos y conexiones. Aprender no siempre necesita una tarea.',
+    type: 'learnings',
+  },
+  attention: {
+    title: 'Tu radar de atención.',
+    subtitle: 'Mantén visibles tus intereses, respeta sus ritmos y elige qué te gustaría retomar.',
+  },
+  analytics: {
+    title: 'Tu tiempo, en perspectiva.',
+    subtitle:
+      'Observa tus patrones y tu evolución. Dedicación, constancia y resultados cuentan historias distintas.',
+  },
+  timeline: {
+    title: 'La historia que construyes.',
+    subtitle: 'Recorre lo que hiciste, aprendiste y alcanzaste. Una memoria de tus meses y años.',
+  },
+  alerts: {
+    title: 'Señales para tu atención.',
+    subtitle:
+      'Recordatorios útiles a partir de tu actividad, tus prioridades y tus propias reglas.',
+  },
+};
+const module = Astro.params.module ?? '';
+const config = modules[module];
+if (!config) return Astro.redirect('/404');
+const snapshot = await getSnapshot();
+const now = new Date(snapshot.generatedAt);
+const filters = Object.fromEntries(Astro.url.searchParams);
+const entityPage = config.type ? getEntityPage(snapshot, config.type, filters) : undefined;
+const summaries = entityPage ? entitySummaries(snapshot, entityPage.records) : {};
+const entitySnapshot = compactMetadata(snapshot);
+const metadataSnapshot = {
+  ...entitySnapshot,
+  records: entitySnapshot.records.filter((record) => ['areas', 'interests'].includes(record.type)),
+  history: [],
+};
+const analytics =
+  module === 'analytics'
+    ? buildAnalytics(snapshot.records, snapshot.settings, {}, now, snapshot.history)
+    : undefined;
+const timeline =
+  module === 'timeline'
+    ? buildTimeline(
+        snapshot.records,
+        { timezone: snapshot.settings.timezone, limit: 21 },
+        snapshot.history,
+      )
+    : [];
+const attention =
+  module === 'attention'
+    ? snapshot.records
+        .filter((record) => record.type === 'interests' && record.status !== 'archived')
+        .map((interest) => ({
+          interest: {
+            id: interest.id,
+            type: interest.type,
+            name: interest.name,
+            description: '',
+            status: interest.status,
+            createdAt: interest.createdAt,
+            updatedAt: interest.updatedAt,
+            areaId: interest.areaId,
+          },
+          attention: attentionFor(
+            interest,
+            snapshot.records,
+            snapshot.settings,
+            now,
+            snapshot.history,
+          ),
+        }))
+    : [];
+const alerts =
+  module === 'alerts'
+    ? buildAlerts(snapshot.records, snapshot.settings, now, snapshot.history)
+    : [];
+---
+
+<AppLayout title={config.title} subtitle={config.subtitle} snapshot={snapshot}>
+  {config.type && entityPage && (
+    <EntityManager
+      client:load
+      type={config.type}
+      snapshot={entitySnapshot}
+      entityPage={entityPage}
+      summaries={summaries}
+      filters={filters}
+    />
+  )}
+  {module === 'attention' && (
+    <AttentionRadar client:load snapshot={metadataSnapshot} initialRows={attention} />
+  )}
+  {module === 'analytics' && analytics && (
+    <Analytics client:load snapshot={metadataSnapshot} initialStats={analytics} />
+  )}
+  {module === 'timeline' && (
+    <Timeline
+      client:load
+      snapshot={metadataSnapshot}
+      initialEvents={timeline.slice(0, 20)}
+      initialHasMore={timeline.length > 20}
+    />
+  )}
+  {module === 'alerts' && <Alerts client:load initialAlerts={alerts} />}
+</AppLayout>

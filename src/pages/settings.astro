@@ -1,0 +1,17 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import SettingsPanel from '../components/SettingsPanel';
+import { getSnapshot } from '../domains/data/repository';
+const snapshot = await getSnapshot({
+  types: ['interests', 'habits', 'projects', 'goals'],
+  includeHistory: false,
+});
+---
+
+<AppLayout
+  title="Configuración"
+  subtitle="Tus preferencias, tu privacidad y tus datos."
+  snapshot={snapshot}
+>
+  <SettingsPanel snapshot={{ ...snapshot, records: [], history: [] }} client:load />
+</AppLayout>
