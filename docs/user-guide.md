@@ -27,6 +27,8 @@ Una **área** organiza intereses; puedes cambiar su nombre, descripción, color,
 
 Un **interés** tiene prioridad y frecuencia deseada en días. No necesita un hábito ni un proyecto. Abre su detalle para revisar tiempo acumulado, última actividad, sesiones y entidades relacionadas. En **Historial** puedes consultar cambios de frecuencia, estado o prioridad.
 
+La frecuencia del interés es un intervalo de atención para el radar. Por ejemplo, «Entrenamiento de fuerza cada cuatro días» indica cuándo conviene retomarlo. La meta «Ir al gimnasio tres veces por semana» pertenece a un hábito vinculado a ese interés: FARO comprobará su cumplimiento contando las actividades de entrenamiento que registres.
+
 Puedes buscar, filtrar y editar los registros. **Eliminar** pide confirmación. Cuando un registro esté relacionado con otros, FARO protege la integridad de la información; archivar suele ser una buena alternativa para conservar contexto histórico.
 
 ## Objetivos y avances

@@ -44,7 +44,12 @@ test('los formularios guardan áreas, intereses, cambios de frecuencia y sesione
   let dialog = page.getByRole('dialog', { name: 'Crear interés', exact: true });
   await dialog.getByLabel(/^Nombre/).fill(interestName);
   await dialog.getByLabel(/^Área de vida/).selectOption({ label: areaName });
-  await dialog.getByLabel(/^Atender cada cuántos días/).fill('7');
+  const newInterestFrequency = dialog.getByLabel(/^Atender cada cuántos días/);
+  await expect(newInterestFrequency).toHaveValue('7');
+  await newInterestFrequency.press('ControlOrMeta+A');
+  await newInterestFrequency.press('Backspace');
+  await expect(newInterestFrequency).toHaveValue('');
+  await newInterestFrequency.pressSequentially('7');
   await dialog.getByLabel('Prioridad', { exact: true }).selectOption('3');
   await dialog.getByRole('button', { name: 'Crear interés', exact: true }).click();
   await expect(recordCard(page, interestName)).toBeVisible();
@@ -53,7 +58,11 @@ test('los formularios guardan áreas, intereses, cambios de frecuencia y sesione
     .getByRole('button', { name: `Editar ${interestName}`, exact: true })
     .click();
   dialog = page.getByRole('dialog', { name: 'Editar interés', exact: true });
-  await dialog.getByLabel(/^Atender cada cuántos días/).fill('14');
+  const editedFrequency = dialog.getByLabel(/^Atender cada cuántos días/);
+  await editedFrequency.press('ControlOrMeta+A');
+  await editedFrequency.press('Backspace');
+  await expect(editedFrequency).toHaveValue('');
+  await editedFrequency.pressSequentially('14');
   await dialog.getByLabel('Estado', { exact: true }).selectOption('paused');
   await dialog.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
   const savedInterestDetail = page.getByRole('dialog', { name: interestName, exact: true });
@@ -69,7 +78,11 @@ test('los formularios guardan áreas, intereses, cambios de frecuencia y sesione
   dialog = page.getByRole('dialog', { name: 'Crear actividad', exact: true });
   await dialog.getByLabel(/^¿Qué hiciste/).fill(activityName);
   await dialog.getByLabel(/^Fecha y hora/).fill('2026-10-28T19:15');
-  await dialog.getByLabel(/^Duración en minutos/).fill('45');
+  const activityDuration = dialog.getByLabel(/^Duración en minutos/);
+  await activityDuration.press('ControlOrMeta+A');
+  await activityDuration.press('Backspace');
+  await expect(activityDuration).toHaveValue('');
+  await activityDuration.pressSequentially('45');
   await dialog.getByRole('checkbox', { name: interestName, exact: true }).check();
   await dialog
     .getByLabel('Notas', { exact: true })

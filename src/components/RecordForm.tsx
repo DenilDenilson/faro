@@ -512,7 +512,7 @@ export default function RecordForm({
                 type="number"
                 min={0}
                 step={1}
-                value={draft.order ?? 0}
+                value={draft.order ?? ''}
                 onChange={(event) => number('order', event.target.value)}
               />
             </Field>
@@ -524,7 +524,7 @@ export default function RecordForm({
             {priority}
             <Field
               label="Atender cada cuántos días *"
-              hint="Cada interés mantiene su propia frecuencia; no necesitas practicarlo a diario."
+              hint="Este intervalo guía el radar de atención. Las metas de N sesiones por semana se configuran en Hábitos."
             >
               <input
                 className="input"
@@ -532,7 +532,7 @@ export default function RecordForm({
                 min={1}
                 max={3650}
                 required
-                value={draft.frequencyDays ?? 7}
+                value={draft.frequencyDays ?? ''}
                 onChange={(event) => number('frequencyDays', event.target.value)}
               />
             </Field>
@@ -600,7 +600,7 @@ export default function RecordForm({
                   required
                   min={1}
                   max={3650}
-                  value={draft.intervalDays ?? 1}
+                  value={draft.intervalDays ?? ''}
                   onChange={(event) => number('intervalDays', event.target.value)}
                 />
               </Field>
@@ -683,7 +683,7 @@ export default function RecordForm({
                 max={1440}
                 step="any"
                 required
-                value={draft.durationMinutes ?? 30}
+                value={draft.durationMinutes ?? ''}
                 onChange={(event) => number('durationMinutes', event.target.value)}
               />
             </Field>
