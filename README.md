@@ -71,6 +71,21 @@ El mismo cliente libSQL y las mismas migraciones sirven para SQLite local y Turs
 Producción rechaza URLs de archivo y requiere URL remota y token; no crea silenciosamente
 una base efímera en Vercel.
 
+### Migrar desde GitHub Actions
+
+Si las credenciales están guardadas en GitHub, abre **Settings → Secrets and variables → Actions**
+y añade los secretos de repositorio `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`. Después ve a
+**Actions → Turso migrations → Run workflow**, seleccionando `main`. El flujo aplica las
+migraciones versionadas y comprueba las seis tablas del esquema FARO; no imprime filas de
+usuario ni los valores de conexión. Solo se ejecuta manualmente, con permisos de repositorio
+de lectura, y proporciona las credenciales únicamente al paso de migración.
+
+Los secretos de GitHub no se pueden recuperar como texto mediante su API ni se transfieren
+al entorno de un chat. Sirven para ejecutar este flujo dentro de Actions. Las consultas
+interactivas sobre datos personales requieren un entorno privado que reciba las variables
+de Turso o una conexión de base de datos configurada. No publiques resultados personales en
+los logs o artefactos de un repositorio público.
+
 ### Migraciones
 
 ```sh

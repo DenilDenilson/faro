@@ -23,7 +23,8 @@
     "verify": "pnpm check && pnpm lint && pnpm test && pnpm build",
     "db:export": "tsx scripts/data.ts export",
     "db:import": "tsx scripts/data.ts import",
-    "db:preview": "tsx scripts/data.ts preview"
+    "db:preview": "tsx scripts/data.ts preview",
+    "db:migrate:remote": "tsx scripts/remote-migrate.ts"
   },
   "dependencies": {
     "@astrojs/react": "7.1.4",
