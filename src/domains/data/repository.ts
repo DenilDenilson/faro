@@ -456,6 +456,8 @@ export async function createRepository(client: Client, options: { migrate?: bool
   ): Promise<FaroRecord> {
     try {
       if (!ENTITY_TYPES.includes(type)) throw new DataError('Tipo de entidad desconocido');
+      if (input === null || typeof input !== 'object' || Array.isArray(input))
+        throw new DataError('Los cambios del registro deben ser un objeto');
       return await transaction(client, async (tx) => {
         const before = recordId ? await getStored(tx, recordId) : null;
         if (recordId && !before) throw new DataError('El registro ya no existe', 404, 'not_found');

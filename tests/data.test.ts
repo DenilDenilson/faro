@@ -466,3 +466,68 @@ describe('protección persistente contra intentos repetidos', () => {
     expect((await repo.consumeLoginAttempt('hashed-client', now + 16 * 60_000)).allowed).toBe(true);
   });
 });
+
+describe('campos opcionales borrados en actualizaciones JSON', () => {
+  it('distingue conservar una meta de minutos de borrarla y conserva su historial', async () => {
+    const { interest } = await fixtures();
+    const habit = await repo.saveRecord('habits', {
+      ...base('Gimnasio'),
+      interestIds: [interest.id],
+      cadence: 'weekly',
+      targetMinutes: 90,
+    });
+    await repo.saveRecord('habits', { name: 'Gimnasio editado' }, habit.id);
+    expect((await repo.getRecord(habit.id))?.targetMinutes).toBe(90);
+    await repo.saveRecord('habits', JSON.parse(JSON.stringify({ targetMinutes: null })), habit.id);
+    expect((await repo.getRecord(habit.id))?.targetMinutes).toBeUndefined();
+    await repo.saveRecord('habits', { targetCount: 3 }, habit.id);
+    await repo.saveRecord('habits', { targetMinutes: 60, targetCount: null }, habit.id);
+    expect(await repo.getRecord(habit.id)).toMatchObject({ targetMinutes: 60 });
+    expect((await repo.getRecord(habit.id))?.targetCount).toBeUndefined();
+    await repo.saveRecord('habits', { targetMinutes: null, targetCount: 3 }, habit.id);
+    const backup = await repo.exportData();
+    expect(backup.records.find((record) => record.id === habit.id)).toMatchObject({
+      targetCount: 3,
+    });
+    expect(backup.records.find((record) => record.id === habit.id)?.targetMinutes).toBeUndefined();
+    expect(
+      backup.history.some(
+        (entry) =>
+          entry.recordId === habit.id &&
+          entry.before?.targetMinutes === 90 &&
+          entry.after?.targetMinutes === undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it('permite quitar fechas y relaciones opcionales sin dejar enlaces antiguos', async () => {
+    const { project, area } = await fixtures();
+    await repo.saveRecord('projects', { endDate: '2026-12-31' }, project.id);
+    await repo.saveRecord('projects', { areaId: null, endDate: null }, project.id);
+    expect((await repo.getRecord(project.id))?.areaId).toBeUndefined();
+    expect((await repo.getRecord(project.id))?.endDate).toBeUndefined();
+    expect((await repo.getRelatedRecords(area.id)).some((record) => record.id === project.id)).toBe(
+      false,
+    );
+  });
+
+  it('rechaza nulos para campos obligatorios y entradas desconocidas', async () => {
+    const { habit, interest } = await fixtures();
+    for (const patch of [
+      { name: null },
+      { description: null },
+      { status: null },
+      { unknownField: null },
+      { cadence: null },
+      null,
+    ]) {
+      await expect(repo.saveRecord('habits', patch, habit.id)).rejects.toMatchObject({
+        status: 400,
+      });
+    }
+    await expect(
+      repo.saveRecord('interests', { frequencyDays: null }, interest.id),
+    ).rejects.toMatchObject({ status: 400 });
+    expect((await repo.getRecord(habit.id))?.name).toBe(habit.name);
+  });
+});

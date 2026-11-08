@@ -45,6 +45,14 @@ Tailwind, primitivas shadcn/Radix, Lucide y Recharts. Hosting Vercel; libSQL/Tur
 12. El cronómetro local es solo borrador secundario. Guardar sesiones en servidor con
     clave de idempotencia; no usar IndexedDB/localStorage como base principal.
 
+## Contrato de edición
+
+Las actualizaciones conservan campos omitidos. Para borrar un campo opcional se envía
+`null` explícito en `data`; la validación lo normaliza y los documentos persistidos no
+almacenan ese nulo. El formulario conserva esta intención al serializar `undefined` como
+`null`. Los campos obligatorios siguen sujetos a sus validaciones. No cambiar globalmente
+la serialización de otras APIs ni convertir campos omitidos en borrados.
+
 ## Trabajo y validación
 
 Usar Node 24 y pnpm según `packageManager`. No introducir Next.js, Prisma, PostgreSQL,

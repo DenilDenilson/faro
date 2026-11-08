@@ -243,10 +243,15 @@ export default function EntityManager({
   }
   async function save(input: RecordInput) {
     if (!editor) return;
+    // JSON drops undefined, so optional fields deliberately emptied by the
+    // form must be sent as null to distinguish clearing from keeping a value.
+    const data = Object.fromEntries(
+      Object.entries(input).map(([key, value]) => [key, value === undefined ? null : value]),
+    );
     await apiRequest(
       editor.record ? `/api/records/${editor.record.id}` : '/api/records',
       editor.record ? 'PUT' : 'POST',
-      { type: editor.type, data: input },
+      { type: editor.type, data },
     );
     window.location.assign(
       `/${type}${editor.record ? `?id=${encodeURIComponent(editor.record.id)}` : ''}`,

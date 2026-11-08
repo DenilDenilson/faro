@@ -96,7 +96,23 @@ export const recordInputSchema = z
   .strict();
 
 export function parseRecordInput(type: EntityType, value: unknown): RecordInput {
-  const data = recordInputSchema.parse(value);
+  // A missing field preserves its previous value in a partial update. An
+  // explicit null clears a known optional field before domain validation.
+  const requiredFields = new Set(['name', 'description', 'status']);
+  const normalized =
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.entries(value).map(([key, fieldValue]) => [
+            key,
+            fieldValue === null &&
+            Object.hasOwn(recordInputSchema.shape, key) &&
+            !requiredFields.has(key)
+              ? undefined
+              : fieldValue,
+          ]),
+        )
+      : value;
+  const data = recordInputSchema.parse(normalized);
   const issue = (message: string): never => {
     throw new z.ZodError([{ code: 'custom', path: [], message }]);
   };

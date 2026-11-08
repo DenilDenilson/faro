@@ -163,3 +163,85 @@ test('eliminar requiere confirmación y el formulario funciona en una pantalla m
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   ).toBeTruthy();
 });
+
+test('quitar minutos de un hábito persiste al reabrirlo y permite cambiar a sesiones', async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(60_000);
+  const headers = { Origin: 'http://127.0.0.1:4322' };
+  const login = await context.request.post('/api/auth/login', {
+    headers,
+    data: { password: 'test-only-faro-password' },
+  });
+  expect(login.ok()).toBe(true);
+  const suffix = String(Date.now());
+  const area = await context.request.post('/api/records', {
+    headers,
+    data: { type: 'areas', data: { name: `Salud ${suffix}` } },
+  });
+  expect(area.status()).toBe(201);
+  const areaId = (await area.json()).data.id as string;
+  const interestName = `Fuerza ${suffix}`;
+  const interest = await context.request.post('/api/records', {
+    headers,
+    data: { type: 'interests', data: { name: interestName, areaId, frequencyDays: 4 } },
+  });
+  expect(interest.status()).toBe(201);
+  const habitName = `Gimnasio ${suffix}`;
+  await page.goto('/habits?new=1');
+  let dialog = page.getByRole('dialog', { name: 'Crear hábito', exact: true });
+  await dialog.getByLabel(/^Nombre/).fill(habitName);
+  await dialog.getByRole('checkbox', { name: interestName, exact: true }).check();
+  await dialog.getByLabel('Minutos por período (opcional)', { exact: true }).fill('90');
+  await expect(dialog.getByLabel('Sesiones por período', { exact: true })).toHaveValue('');
+  await dialog.getByRole('button', { name: 'Crear hábito', exact: true }).click();
+  await expect(recordCard(page, habitName)).toBeVisible();
+  const readHabit = async () => {
+    const response = await context.request.get('/api/records?type=habits&limit=100');
+    expect(response.ok()).toBe(true);
+    const data = (await response.json()).data as {
+      name: string;
+      targetCount?: number;
+      targetMinutes?: number;
+    }[];
+    return data.find((record) => record.name === habitName)!;
+  };
+  const editHabit = async () => {
+    await recordCard(page, habitName)
+      .getByRole('button', { name: `Editar ${habitName}`, exact: true })
+      .click();
+    dialog = page.getByRole('dialog', { name: 'Editar hábito', exact: true });
+    await expect(dialog).toBeVisible();
+  };
+  const saveHabit = async () => {
+    await dialog.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
+    const detail = page.getByRole('dialog', { name: habitName, exact: true });
+    await expect(detail).toBeVisible();
+    await detail.getByRole('button', { name: 'Cerrar diálogo', exact: true }).click();
+    await expect(detail).not.toBeVisible();
+  };
+  expect((await readHabit()).targetMinutes).toBe(90);
+  await editHabit();
+  await dialog.getByLabel('Minutos por período (opcional)', { exact: true }).fill('');
+  await saveHabit();
+  expect((await readHabit()).targetMinutes).toBeUndefined();
+  await editHabit();
+  await expect(dialog.getByLabel('Minutos por período (opcional)', { exact: true })).toHaveValue(
+    '',
+  );
+  await dialog.getByLabel('Sesiones por período', { exact: true }).fill('3');
+  await saveHabit();
+  expect(await readHabit()).toMatchObject({ targetCount: 3 });
+  expect((await readHabit()).targetMinutes).toBeUndefined();
+  await editHabit();
+  await dialog.getByLabel('Minutos por período (opcional)', { exact: true }).fill('60');
+  await saveHabit();
+  expect(await readHabit()).toMatchObject({ targetMinutes: 60 });
+  expect((await readHabit()).targetCount).toBeUndefined();
+  await editHabit();
+  await dialog.getByLabel('Sesiones por período', { exact: true }).fill('3');
+  await saveHabit();
+  expect(await readHabit()).toMatchObject({ targetCount: 3 });
+  expect((await readHabit()).targetMinutes).toBeUndefined();
+});
