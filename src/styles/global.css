@@ -1592,3 +1592,217 @@ select[multiple] {
     padding-top: 20px;
   }
 }
+
+/* Weekly radar: intentions and actual activities share a week, never a counter. */
+.week-toolbar,
+.week-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.week-navigation {
+  flex-wrap: wrap;
+}
+.week-navigation h2 {
+  font-size: 18px;
+}
+.week-options > .field {
+  min-width: 155px;
+}
+.week-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.week-calendar.workdays {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.week-day {
+  min-width: 0;
+  min-height: 250px;
+  padding: 13px 9px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.week-day:last-child {
+  border-right: 0;
+}
+.week-day[data-today='true'] {
+  background: var(--surface-soft);
+}
+.week-day-heading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.week-day-heading h3 {
+  font-size: 13px;
+}
+.week-day-heading h3 span {
+  color: var(--muted);
+  font-weight: 400;
+}
+.week-day-heading .badge {
+  font-size: 10px;
+  padding: 2px 5px;
+}
+.week-day-load {
+  font-size: 11px;
+  min-height: 30px;
+}
+.week-events {
+  display: grid;
+  gap: 9px;
+}
+.week-entry {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  min-width: 0;
+  padding: 10px 9px;
+  border-radius: 7px;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.week-entry strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.week-entry > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.week-entry.planned {
+  border: 1px dashed var(--border);
+  background: var(--surface);
+}
+.week-entry.done {
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+}
+.week-entry.done > span {
+  color: var(--accent);
+}
+.week-entry:hover {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.week-add {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: auto;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+}
+.week-support {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 36px;
+  margin: 10px 0;
+}
+.week-progress {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 9px 0;
+}
+.week-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.week-rhythm .section-heading {
+  margin-bottom: 0;
+  gap: 10px;
+}
+.week-unplaced {
+  display: grid;
+  gap: 5px;
+  text-align: left;
+  border: 0;
+  background: var(--surface-soft);
+  border-radius: 8px;
+  padding: 13px;
+  color: var(--ink);
+}
+.week-previous {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.week-attention-list {
+  display: grid;
+  gap: 12px;
+}
+.week-attention-row,
+.week-template {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.preserve-lines {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1150px) {
+  .week-calendar,
+  .week-calendar.workdays {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .week-day {
+    min-height: 200px;
+    border-bottom: 1px solid var(--border);
+  }
+}
+@media (max-width: 700px) {
+  .week-calendar,
+  .week-calendar.workdays {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .week-support {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .week-navigation h2 {
+    font-size: 15px;
+  }
+  .week-options {
+    align-items: flex-start;
+  }
+}
+@media (max-width: 420px) {
+  .week-calendar,
+  .week-calendar.workdays {
+    grid-template-columns: 1fr;
+  }
+  .week-day {
+    min-height: 0;
+    border-right: 0;
+    padding: 15px 8px;
+  }
+  .week-day-load {
+    min-height: 0;
+  }
+  .week-entry {
+    padding: 12px;
+  }
+}
+@media (pointer: coarse) {
+  .week-add {
+    min-height: 44px;
+  }
+}

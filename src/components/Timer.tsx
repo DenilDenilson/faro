@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Timer as TimerIcon, Play, Pause, X, Save } from 'lucide-react';
+import type { WeekPlan } from '../domains/planning/types';
 import type { FaroSnapshot } from '../lib/types';
 import {
   elapsedAt,
@@ -48,6 +49,54 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
   useEffect(() => {
     if (ready) localStorage.setItem(STORAGE_KEY, JSON.stringify(timer));
   }, [timer, ready]);
+  useEffect(() => {
+    if (timer.plan) {
+      setName(timer.plan.name);
+      setInterestId(timer.plan.interestId);
+      setHabitId(timer.plan.habitId ?? '');
+      setProjectId(timer.plan.projectId ?? '');
+      setGoalId(timer.plan.goalId ?? '');
+      setNotes(timer.plan.notes ?? '');
+    }
+  }, [timer.plan]);
+  useEffect(() => {
+    const fromPlan = (event: Event) => {
+      const plan = (event as CustomEvent<WeekPlan>).detail;
+      if (!plan || plan.kind !== 'plan' || plan.status !== 'pending' || !plan.interestIds.length)
+        return;
+      setOpen(true);
+      setError('');
+      if (timer.status !== 'idle' && timer.plan?.id !== plan.id) {
+        setError(
+          'Ya tienes un cronómetro en curso. Guarda o descarta esa sesión antes de iniciar otra práctica.',
+        );
+        return;
+      }
+      setFinishing(false);
+      if (timer.status === 'idle')
+        update(
+          startTimer({
+            ...freshTimer(),
+            plan: {
+              id: plan.id,
+              name: plan.name,
+              weekStart: plan.weekStart,
+              interestId: plan.interestIds[0]!,
+              habitId: plan.habitIds?.[0],
+              projectId: plan.projectIds?.[0],
+              goalId: plan.goalIds?.[0],
+              notes: plan.notes,
+            },
+          }),
+        );
+      else update(startTimer(timer));
+    };
+    window.addEventListener('faro:plan-timer', fromPlan);
+    return () => window.removeEventListener('faro:plan-timer', fromPlan);
+  }, [timer]);
+  useEffect(() => {
+    if (ready) window.dispatchEvent(new Event('faro:timer-ready'));
+  }, [ready]);
   function update(next: TimerState) {
     setTimer(next);
     setNow(Date.now());
@@ -59,25 +108,36 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
     try {
       const durationMinutes = Math.round(elapsedAt(timer) / 600) / 100;
       if (durationMinutes <= 0) throw new Error('Registra al menos un segundo de actividad.');
-      const response = await fetch('/api/records', {
+      const response = await fetch(timer.plan ? '/api/planning' : '/api/records', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'activities',
-          data: {
-            name,
-            description: '',
-            status: 'active',
-            occurredAt: timer.startedAt,
-            durationMinutes,
-            interestIds: interestId ? [interestId] : [],
-            habitIds: habitId ? [habitId] : [],
-            projectIds: projectId ? [projectId] : [],
-            goalIds: goalId ? [goalId] : [],
-            notes,
-            idempotencyKey: timer.idempotencyKey,
-          },
-        }),
+        body: JSON.stringify(
+          timer.plan
+            ? {
+                action: 'complete',
+                id: timer.plan.id,
+                name,
+                occurredAt: timer.startedAt,
+                durationMinutes,
+                notes,
+              }
+            : {
+                type: 'activities',
+                data: {
+                  name,
+                  description: '',
+                  status: 'active',
+                  occurredAt: timer.startedAt,
+                  durationMinutes,
+                  interestIds: interestId ? [interestId] : [],
+                  habitIds: habitId ? [habitId] : [],
+                  projectIds: projectId ? [projectId] : [],
+                  goalIds: goalId ? [goalId] : [],
+                  notes,
+                  idempotencyKey: timer.idempotencyKey,
+                },
+              },
+        ),
       });
       const result = (await response.json()) as { ok: boolean; error?: string };
       if (!response.ok || !result.ok)
@@ -87,7 +147,9 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
       const cleared = freshTimer();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(cleared));
       setTimer(cleared);
-      window.location.assign('/activities');
+      window.location.assign(
+        timer.plan ? `/attention?week=${timer.plan.weekStart}` : '/activities',
+      );
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'No se pudo guardar.');
     } finally {
@@ -115,6 +177,11 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
               <X size={20} />
             </button>
           </Dialog.Close>
+          {timer.plan && (
+            <p className="muted small">
+              Práctica: {timer.plan.name}. Sus vínculos se conservarán al guardar.
+            </p>
+          )}
           <div className="timer-display" role="timer" aria-label="Tiempo transcurrido">
             {formatElapsed(elapsed)}
           </div>
@@ -163,7 +230,12 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
               </label>
               <label className="field">
                 Interés
-                <select value={interestId} required onChange={(e) => setInterestId(e.target.value)}>
+                <select
+                  disabled={Boolean(timer.plan)}
+                  value={interestId}
+                  required
+                  onChange={(e) => setInterestId(e.target.value)}
+                >
                   <option value="">Seleccionar interés</option>
                   {snapshot.records
                     .filter((r) => r.type === 'interests' && r.status !== 'archived')
@@ -176,7 +248,11 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
               </label>
               <label className="field">
                 Hábito (opcional)
-                <select value={habitId} onChange={(e) => setHabitId(e.target.value)}>
+                <select
+                  disabled={Boolean(timer.plan)}
+                  value={habitId}
+                  onChange={(e) => setHabitId(e.target.value)}
+                >
                   <option value="">Sin hábito</option>
                   {snapshot.records
                     .filter((r) => r.type === 'habits' && r.status === 'active')
@@ -189,7 +265,11 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
               </label>
               <label className="field">
                 Proyecto (opcional)
-                <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                <select
+                  disabled={Boolean(timer.plan)}
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                >
                   <option value="">Sin proyecto</option>
                   {snapshot.records
                     .filter((r) => r.type === 'projects' && r.status !== 'archived')
@@ -202,7 +282,11 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
               </label>
               <label className="field">
                 Objetivo (opcional)
-                <select value={goalId} onChange={(e) => setGoalId(e.target.value)}>
+                <select
+                  disabled={Boolean(timer.plan)}
+                  value={goalId}
+                  onChange={(e) => setGoalId(e.target.value)}
+                >
                   <option value="">Sin objetivo</option>
                   {snapshot.records
                     .filter((r) => r.type === 'goals' && r.status === 'active')
@@ -222,11 +306,6 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
                   placeholder="Algo que quieras conservar de esta sesión"
                 />
               </label>
-              {error && (
-                <p className="error" role="alert">
-                  {error}
-                </p>
-              )}
               {!snapshot.records.some((r) => r.type === 'interests') && (
                 <p>
                   Crea primero un <a href="/interests">interés</a>. El cronómetro se conserva en
@@ -238,6 +317,11 @@ export default function Timer({ snapshot }: { snapshot: FaroSnapshot }) {
                 {saving ? 'Guardando…' : 'Guardar sesión'}
               </button>
             </form>
+          )}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
           )}
           {timer.status !== 'idle' && (
             <button

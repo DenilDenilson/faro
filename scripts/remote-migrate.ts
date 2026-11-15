@@ -11,6 +11,9 @@ const expectedTables = [
   'faro_settings',
   'faro_access_attempts',
   'faro_migrations',
+  'faro_planning',
+  'faro_planning_links',
+  'faro_planning_history',
 ];
 let client: Client | undefined;
 try {

@@ -34,7 +34,7 @@ describe('direct database backup CLI', () => {
         maxBuffer: 1024 * 1024,
       });
     try {
-      await createRepository(source);
+      const sourceRepository = await createRepository(source);
       const destination = await createRepository(target);
       await destination.updateSettings({ timezone: 'Europe/Madrid' });
       const records: FaroRecord[] = Array.from({ length: 75 }, (_, index) => ({
@@ -63,6 +63,32 @@ describe('direct database backup CLI', () => {
         'write',
       );
 
+      const area = await sourceRepository.saveRecord('areas', {
+        name: 'Área CLI',
+        description: '',
+        status: 'active',
+      });
+      const interest = await sourceRepository.saveRecord('interests', {
+        name: 'Interés CLI',
+        description: '',
+        status: 'active',
+        areaId: area.id,
+        frequencyDays: 7,
+      });
+      await sourceRepository.planningCommand({
+        action: 'save',
+        data: {
+          name: 'Práctica CLI',
+          weekStart: '2026-11-09',
+          interestIds: [interest.id],
+          notes: 'Material para estudiar',
+        },
+      });
+      await sourceRepository.planningCommand({
+        action: 'template',
+        weekStart: '2026-11-09',
+        name: 'Semana CLI',
+      });
       const exported = JSON.parse((await command(sourceURL, ['export', file])).stdout) as {
         sha256: string;
         records: number;
@@ -70,7 +96,7 @@ describe('direct database backup CLI', () => {
       const info = await stat(file);
       expect(info.size).toBeGreaterThan(4 * 1024 * 1024);
       if (process.platform !== 'win32') expect(info.mode & 0o777).toBe(0o600);
-      expect(exported.records).toBe(75);
+      expect(exported.records).toBe(77);
       expect(
         createHash('sha256')
           .update(await readFile(file))
@@ -88,7 +114,7 @@ describe('direct database backup CLI', () => {
       const preview = JSON.parse(
         (await command(targetURL, ['preview', file])).stdout,
       ) as ImportPreview;
-      expect(preview.newRecords).toBe(75);
+      expect(preview.newRecords).toBe(77);
       await expect(command(targetURL, ['import', file])).rejects.toMatchObject({ code: 1 });
       await expect(
         command(targetURL, ['import', file, '--digest', '0'.repeat(64)]),
@@ -98,13 +124,15 @@ describe('direct database backup CLI', () => {
       const restored = JSON.parse(
         (await command(targetURL, ['import', file, '--digest', preview.digest])).stdout,
       ) as { imported: number; preferencesRestored: boolean };
-      expect(restored).toMatchObject({ imported: 75, preferencesRestored: false });
-      expect(await destination.listRecords()).toHaveLength(75);
+      expect(restored).toMatchObject({ imported: 77, preferencesRestored: false });
+      expect(await destination.listRecords()).toHaveLength(77);
+      expect(await destination.listPlanning()).toHaveLength(2);
+      expect((await destination.exportData()).planningHistory).toHaveLength(2);
       expect((await destination.getSettings()).timezone).toBe('Europe/Madrid');
       const repeated = JSON.parse(
         (await command(targetURL, ['preview', file])).stdout,
       ) as ImportPreview;
-      expect(repeated).toMatchObject({ newRecords: 0, duplicates: 75, conflicts: 0 });
+      expect(repeated).toMatchObject({ newRecords: 0, duplicates: 77, conflicts: 0 });
     } finally {
       source.close();
       target.close();

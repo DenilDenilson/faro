@@ -25,6 +25,14 @@ La proporción de aviso parte de `attentionWarningRatio` (0,8 inicialmente), res
 
 Se muestra también el tiempo de calendario desde la última sesión, separado de los días activos usados para la regla. Los intereses sin sesiones no permanecen indefinidamente invisibles: tras su ventana inicial pueden necesitar atención. El radar ordena primero los estados que necesitan atención y después la prioridad; no genera una puntuación global de vida.
 
+## Planificación semanal
+
+Las intenciones se almacenan en `faro_planning` y sus relaciones e historial en `faro_planning_links` y `faro_planning_history`. Son independientes de `faro_records`: no se tratan como actividades futuras ni entran en las estadísticas. Los días relativos de las semanas tipo usan lunes=0 y domingo=6; los días personalizados de hábitos conservan domingo=0. Cada plan pertenece a una semana que empieza el lunes y puede tener un día dentro de esa semana o quedar por ubicar.
+
+La carga prevista de un día suma solo las estimaciones conocidas y muestra por separado las prácticas sin estimación. El avance realizado usa exclusivamente sesiones reales no anuladas, con fecha hasta el instante actual. Los ritmos reutilizan los períodos de hábitos; los mensuales y por intervalo se identifican como tales. Las previsiones no reducen el intervalo real de atención de los intereses.
+
+Completar un plan guarda la actividad, sus relaciones, el estado realizado del plan y ambos historiales en una sola transacción. La clave de sesión depende del plan; los reintentos no crean otra actividad. Las semanas tipo y la selección de pendientes generan planes nuevos, sin copiar IDs de actividades ni marcar resultados. Las claves de origen evitan repetir la misma aplicación o selección a una misma semana.
+
 ## Hábitos
 
 Frecuencias admitidas: diaria, semanal, mensual, cada N días y días personalizados de la semana (domingo=0, lunes=1, sábado=6, como en los formularios y el formato de respaldo). El hábito personalizado utiliza una ventana semanal y señala los días elegidos. Se permiten sesiones retrospectivas y sesiones fuera del día sugerido, porque FARO registra actividad real y no impone una agenda rígida.

@@ -6,7 +6,7 @@ FARO registra actividad real y conserva memoria de tu evolución; no impone una 
 ## Funciones
 
 - **Hoy:** actividad diaria/semanal, hábitos, proyectos, objetivos y recomendaciones calculadas.
-- **Mi vida:** áreas ordenables, intereses con frecuencia propia y radar de atención.
+- **Mi vida:** áreas ordenables, intereses con frecuencia propia y radar semanal con prácticas flexibles, semanas tipo y registro directo de sesiones.
 - **Objetivos y proyectos:** indicadores medibles, avances explícitos, hitos e historial.
 - **Hábitos y actividades:** frecuencias diaria/semanal/mensual/cada N días/días elegidos,
   cantidades o minutos, registro retrospectivo y cronómetro con pausa y recuperación.
@@ -76,7 +76,7 @@ una base efímera en Vercel.
 Si las credenciales están guardadas en GitHub, abre **Settings → Secrets and variables → Actions**
 y añade los secretos de repositorio `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`. Después ve a
 **Actions → Turso migrations → Run workflow**, seleccionando `main`. El flujo aplica las
-migraciones versionadas y comprueba las seis tablas del esquema FARO; no imprime filas de
+migraciones versionadas y comprueba las nueve tablas del esquema FARO; no imprime filas de
 usuario ni los valores de conexión. Solo se ejecuta manualmente, con permisos de repositorio
 de lectura, y proporciona las credenciales únicamente al paso de migración.
 
@@ -103,7 +103,10 @@ con Drizzle Kit; revisa el SQL y actualiza `SCHEMA_VERSION` en
 Todas las tablas propias usan `faro_`, incluidas relaciones, preferencias, intentos de
 acceso e historial. Las tablas de otras aplicaciones permanecen intactas. El modelo
 usa documentos tipados por dominio dentro de `faro_records`, campos de consulta
-indexados y relaciones normalizadas con claves foráneas en `faro_links`.
+indexados y relaciones normalizadas con claves foráneas en `faro_links`. La migración 0001 añade
+`faro_planning`, `faro_planning_links` y `faro_planning_history` para planes y semanas tipo;
+no modifica ni reconstruye las tablas existentes. Los respaldos versión 1 admiten los
+campos opcionales `planning` y `planningHistory`; los respaldos anteriores siguen siendo válidos.
 
 ## Variables privadas
 

@@ -45,6 +45,15 @@ Tailwind, primitivas shadcn/Radix, Lucide y Recharts. Hosting Vercel; libSQL/Tur
 12. El cronómetro local es solo borrador secundario. Guardar sesiones en servidor con
     clave de idempotencia; no usar IndexedDB/localStorage como base principal.
 
+## Planificación semanal
+
+Los planes y semanas tipo usan `faro_planning`, con relaciones e historial propios. Nunca
+tratarlos como actividades futuras, minutos reales ni cumplimiento. Completar un plan y
+crear su actividad es una única transacción con clave idempotente. No copiar sesiones al
+reutilizar semanas ni trasladar pendientes sin selección del usuario. Respetar períodos y
+pausas de hábitos. Incluir planificación e historial en exportaciones web y CLI; importar
+sin sobrescribir conflictos y validar relaciones antes de persistir.
+
 ## Contrato de edición
 
 Las actualizaciones conservan campos omitidos. Para borrar un campo opcional se envía

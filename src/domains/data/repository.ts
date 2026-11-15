@@ -18,6 +18,24 @@ import {
   type SnapshotOptions,
   type ListRecordOptions,
 } from '../../lib/types';
+import type { PlanningItem, PlanningHistory, WeekPlan, PlanSlot } from '../planning/types';
+import {
+  planningCommandSchema,
+  planningItemSchema,
+  type PlanningCommand,
+} from '../planning/validation';
+import { weeklyRhythms } from '../planning';
+import { habitPeriods } from '../habits';
+import {
+  addDays,
+  dateKey,
+  daysBetween,
+  startOfWeek,
+  weekday,
+  isActivity,
+  recordDate,
+  endOfDay,
+} from '../analytics/dates';
 import { parseBackup, parseRecordInput, parseSettings } from '../../lib/validation';
 
 export class DataError extends Error {
@@ -389,7 +407,10 @@ export async function createRepository(client: Client, options: { migrate?: bool
     return rows.map((row) => row.data);
   }
 
-  async function getSnapshot(options: SnapshotOptions = {}): Promise<FaroSnapshot> {
+  async function getSnapshot(
+    options: SnapshotOptions = {},
+    executor?: Executor,
+  ): Promise<FaroSnapshot> {
     for (const date of [options.from, options.to, options.historySince])
       if (date && !Number.isFinite(Date.parse(date)))
         throw new DataError('Filtro de fecha inválido');
@@ -409,44 +430,130 @@ export async function createRepository(client: Client, options: { migrate?: bool
       predicates.push(`type IN (${options.types.map(() => '?').join(',')})`);
       args.push(...options.types);
     }
-    return transaction(
-      client,
-      async (tx) => {
-        const rows = await tx.execute({
-          sql: `SELECT data FROM faro_records ${predicates.length ? `WHERE ${predicates.join(' AND ')}` : ''} ORDER BY occurred_at DESC, created_at DESC, id DESC`,
-          args,
-        });
-        const preferences = await tx.execute({
-          sql: 'SELECT data FROM faro_settings WHERE id = ?',
-          args: ['preferences'],
-        });
-        const changes = await tx.execute({
-          sql: `SELECT * FROM faro_history ${options.includeHistory === false ? 'WHERE 0' : options.historySince ? 'WHERE occurred_at >= ?' : ''} ORDER BY occurred_at ASC, rowid ASC`,
-          args:
-            options.includeHistory !== false && options.historySince
-              ? [new Date(options.historySince).toISOString()]
-              : [],
-        });
-        const result: FaroSnapshot = {
-          records: rows.rows.map((row) => parseJSON<FaroRecord>(row.data)),
-          settings: preferences.rows[0]
-            ? parseSettings(parseJSON<Settings>(preferences.rows[0].data))
-            : structuredClone(DEFAULT_SETTINGS),
-          history: changes.rows.map((row) => ({
-            id: String(row.id),
-            recordId: String(row.record_id),
-            type: String(row.type) as EntityType,
-            occurredAt: String(row.occurred_at),
-            operation: String(row.operation) as 'create' | 'update' | 'delete',
-            before: row.before_data ? parseJSON<FaroRecord>(row.before_data) : null,
-            after: row.after_data ? parseJSON<FaroRecord>(row.after_data) : null,
-          })),
-          generatedAt: new Date().toISOString(),
-        };
-        return result;
-      },
-      'read',
+    const read = async (tx: Executor) => {
+      const rows = await tx.execute({
+        sql: `SELECT data FROM faro_records ${predicates.length ? `WHERE ${predicates.join(' AND ')}` : ''} ORDER BY occurred_at DESC, created_at DESC, id DESC`,
+        args,
+      });
+      const preferences = await tx.execute({
+        sql: 'SELECT data FROM faro_settings WHERE id = ?',
+        args: ['preferences'],
+      });
+      const changes = await tx.execute({
+        sql: `SELECT * FROM faro_history ${options.includeHistory === false ? 'WHERE 0' : options.historySince ? 'WHERE occurred_at >= ?' : ''} ORDER BY occurred_at ASC, rowid ASC`,
+        args:
+          options.includeHistory !== false && options.historySince
+            ? [new Date(options.historySince).toISOString()]
+            : [],
+      });
+      const result: FaroSnapshot = {
+        records: rows.rows.map((row) => parseJSON<FaroRecord>(row.data)),
+        settings: preferences.rows[0]
+          ? parseSettings(parseJSON<Settings>(preferences.rows[0].data))
+          : structuredClone(DEFAULT_SETTINGS),
+        history: changes.rows.map((row) => ({
+          id: String(row.id),
+          recordId: String(row.record_id),
+          type: String(row.type) as EntityType,
+          occurredAt: String(row.occurred_at),
+          operation: String(row.operation) as 'create' | 'update' | 'delete',
+          before: row.before_data ? parseJSON<FaroRecord>(row.before_data) : null,
+          after: row.after_data ? parseJSON<FaroRecord>(row.after_data) : null,
+        })),
+        generatedAt: new Date().toISOString(),
+      };
+      return result;
+    };
+    return executor ? read(executor) : transaction(client, read, 'read');
+  }
+
+  async function writeRecord(
+    tx: Executor,
+    type: EntityType,
+    input: unknown,
+    recordId?: string,
+  ): Promise<FaroRecord> {
+    const before = recordId ? await getStored(tx, recordId) : null;
+    if (recordId && !before) throw new DataError('El registro ya no existe', 404, 'not_found');
+    if (before && before.type !== type)
+      throw new DataError('No se puede cambiar el tipo de un registro');
+    const previousInput = before
+      ? Object.fromEntries(
+          Object.entries(before).filter(
+            ([key]) => !['id', 'type', 'createdAt', 'updatedAt'].includes(key),
+          ),
+        )
+      : {};
+    const data = parseRecordInput(
+      type,
+      before ? { ...previousInput, ...(input as object) } : input,
     );
+    const now = new Date().toISOString();
+    const record: FaroRecord = {
+      ...data,
+      id: recordId ?? randomUUID(),
+      type,
+      createdAt: before?.createdAt ?? now,
+      updatedAt: now,
+    };
+    if (type === 'goals')
+      record.baselineValue = before?.baselineValue ?? before?.currentValue ?? record.currentValue;
+    if (record.status === 'completed')
+      record.completedAt =
+        before?.status === 'completed' ? (before.completedAt ?? before.updatedAt) : now;
+    else delete record.completedAt;
+    if (record.occurredAt) record.occurredAt = new Date(record.occurredAt).toISOString();
+    if (type === 'progress' && record.occurredAt && record.occurredAt > now)
+      record.occurredAt = now;
+    await validateRelations(record, await referencedTypes(tx, record));
+    if (!recordId && record.idempotencyKey) {
+      const matches = await tx.execute({
+        sql: 'SELECT data FROM faro_records WHERE idempotency_key = ? LIMIT 1',
+        args: [record.idempotencyKey],
+      });
+      const existing = matches.rows[0] ? parseJSON<FaroRecord>(matches.rows[0].data) : null;
+      if (existing) {
+        if (activityFingerprint(existing) !== activityFingerprint(record))
+          throw new DataError(
+            'La clave de registro ya se utilizó con otros datos',
+            409,
+            'idempotency_conflict',
+          );
+        return existing;
+      }
+    }
+    await persistRecord(tx, record);
+    await persistLinks(tx, record);
+    await audit(tx, before, record, now);
+    if (
+      type === 'goals' &&
+      before &&
+      record.currentValue !== before.currentValue &&
+      record.currentValue !== undefined
+    ) {
+      const measurement: FaroRecord = {
+        id: randomUUID(),
+        type: 'progress',
+        name: `Medición: ${record.name}`,
+        description: '',
+        status: 'completed',
+        parentId: record.id,
+        value: record.currentValue,
+        occurredAt: now,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: now,
+      };
+      await persistRecord(tx, measurement);
+      await persistLinks(tx, measurement);
+      await audit(tx, null, measurement, now);
+    }
+    if (type === 'progress') {
+      if (before?.parentId && before.parentId !== record.parentId)
+        await synchronizeGoalProgress(tx, before.parentId, now);
+      await synchronizeGoalProgress(tx, record.parentId, now);
+    }
+    return record;
   }
 
   async function saveRecord(
@@ -459,88 +566,432 @@ export async function createRepository(client: Client, options: { migrate?: bool
       if (input === null || typeof input !== 'object' || Array.isArray(input))
         throw new DataError('Los cambios del registro deben ser un objeto');
       return await transaction(client, async (tx) => {
-        const before = recordId ? await getStored(tx, recordId) : null;
-        if (recordId && !before) throw new DataError('El registro ya no existe', 404, 'not_found');
-        if (before && before.type !== type)
-          throw new DataError('No se puede cambiar el tipo de un registro');
-        const previousInput = before
-          ? Object.fromEntries(
-              Object.entries(before).filter(
-                ([key]) => !['id', 'type', 'createdAt', 'updatedAt'].includes(key),
-              ),
-            )
-          : {};
-        const data = parseRecordInput(
-          type,
-          before ? { ...previousInput, ...(input as object) } : input,
+        return writeRecord(tx, type, input, recordId);
+      });
+    } catch (error) {
+      exposeError(error);
+    }
+  }
+
+  const planningSlots = (item: PlanningItem): PlanSlot[] =>
+    item.kind === 'plan' ? [item] : item.slots;
+  function planningRelations(item: PlanningItem): Link[] {
+    const result = planningSlots(item).flatMap((slot) =>
+      relationLinks({
+        ...slot,
+        id: item.id,
+        type: 'activities',
+        description: '',
+        status: 'active',
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      }),
+    );
+    if (item.kind === 'plan' && item.activityId)
+      result.push({ targetId: item.activityId, relation: 'activity', expected: ['activities'] });
+    return [...new Map(result.map((link) => [`${link.relation}:${link.targetId}`, link])).values()];
+  }
+  async function validatePlanning(
+    tx: Executor,
+    item: PlanningItem,
+    supplied?: Map<string, FaroRecord>,
+  ): Promise<void> {
+    for (const link of planningRelations(item)) {
+      const target = supplied?.get(link.targetId) ?? (await getStored(tx, link.targetId));
+      if (!target || !link.expected.includes(target.type))
+        throw new DataError(
+          'La planificación contiene una relación inexistente o de otro tipo',
+          409,
+          'invalid_planning_relation',
         );
+    }
+  }
+  async function getPlanning(tx: Executor, id: string): Promise<PlanningItem> {
+    const result = await tx.execute({
+      sql: 'SELECT data FROM faro_planning WHERE id = ?',
+      args: [id],
+    });
+    if (!result.rows[0])
+      throw new DataError('La práctica o semana tipo ya no existe', 404, 'not_found');
+    return parseJSON<PlanningItem>(result.rows[0].data);
+  }
+  async function storedPlanning(tx: Executor): Promise<PlanningItem[]> {
+    return (await tx.execute('SELECT data FROM faro_planning ORDER BY id')).rows.map((row) =>
+      parseJSON<PlanningItem>(row.data),
+    );
+  }
+  async function persistPlanning(tx: Executor, item: PlanningItem): Promise<void> {
+    await tx.execute({
+      sql: 'INSERT INTO faro_planning(id,kind,week_start,source_key,data) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET week_start=excluded.week_start,source_key=excluded.source_key,data=excluded.data',
+      args: [
+        item.id,
+        item.kind,
+        item.kind === 'plan' ? item.weekStart : null,
+        item.kind === 'plan' ? (item.sourceKey ?? null) : null,
+        JSON.stringify(item),
+      ],
+    });
+    await tx.execute({
+      sql: 'DELETE FROM faro_planning_links WHERE source_id = ?',
+      args: [item.id],
+    });
+    for (const link of planningRelations(item))
+      await tx.execute({
+        sql: 'INSERT INTO faro_planning_links(source_id,target_id,relation) VALUES (?,?,?)',
+        args: [item.id, link.targetId, link.relation],
+      });
+  }
+  async function writePlanning(
+    tx: Executor,
+    item: PlanningItem,
+    before: PlanningItem | null = null,
+  ): Promise<PlanningItem> {
+    const parsed = planningItemSchema.parse(item);
+    await validatePlanning(tx, parsed);
+    await persistPlanning(tx, parsed);
+    const change: PlanningHistory = {
+      id: randomUUID(),
+      itemId: item.id,
+      occurredAt: item.updatedAt,
+      before,
+      after: parsed,
+    };
+    await tx.execute({
+      sql: 'INSERT INTO faro_planning_history(id,item_id,occurred_at,data) VALUES (?,?,?,?)',
+      args: [change.id, change.itemId, change.occurredAt, JSON.stringify(change)],
+    });
+    return parsed;
+  }
+  async function listPlanning(week?: string): Promise<PlanningItem[]> {
+    const result = week
+      ? await client.execute({
+          sql: "SELECT data FROM faro_planning WHERE kind = 'template' OR week_start IN (?,?) ORDER BY id",
+          args: [week, addDays(week, -7)],
+        })
+      : await client.execute('SELECT data FROM faro_planning ORDER BY id');
+    return result.rows.map((row) => parseJSON<PlanningItem>(row.data));
+  }
+  function slotFromPlan(plan: WeekPlan): PlanSlot {
+    return {
+      name: plan.name,
+      notes: plan.notes,
+      interestIds: plan.interestIds,
+      habitIds: plan.habitIds,
+      projectIds: plan.projectIds,
+      goalIds: plan.goalIds,
+      estimatedMinutes: plan.estimatedMinutes,
+    };
+  }
+  async function planningCommand(value: unknown): Promise<PlanningItem[]> {
+    try {
+      const command: PlanningCommand = planningCommandSchema.parse(value);
+      return await transaction(client, async (tx) => {
         const now = new Date().toISOString();
-        const record: FaroRecord = {
-          ...data,
-          id: recordId ?? randomUUID(),
-          type,
-          createdAt: before?.createdAt ?? now,
-          updatedAt: now,
-        };
-        if (type === 'goals')
-          record.baselineValue =
-            before?.baselineValue ?? before?.currentValue ?? record.currentValue;
-        if (record.status === 'completed')
-          record.completedAt =
-            before?.status === 'completed' ? (before.completedAt ?? before.updatedAt) : now;
-        else delete record.completedAt;
-        if (record.occurredAt) record.occurredAt = new Date(record.occurredAt).toISOString();
-        if (type === 'progress' && record.occurredAt && record.occurredAt > now)
-          record.occurredAt = now;
-        await validateRelations(record, await referencedTypes(tx, record));
-        if (!recordId && record.idempotencyKey) {
-          const matches = await tx.execute({
-            sql: 'SELECT data FROM faro_records WHERE idempotency_key = ? LIMIT 1',
-            args: [record.idempotencyKey],
-          });
-          const existing = matches.rows[0] ? parseJSON<FaroRecord>(matches.rows[0].data) : null;
-          if (existing) {
-            if (activityFingerprint(existing) !== activityFingerprint(record))
-              throw new DataError(
-                'La clave de registro ya se utilizó con otros datos',
-                409,
-                'idempotency_conflict',
-              );
-            return existing;
+        const result: PlanningItem[] = [];
+        const makePlan = async (
+          slot: PlanSlot,
+          week: string,
+          day: string | undefined,
+          sourceKey?: string,
+        ) => {
+          if (sourceKey) {
+            const match = await tx.execute({
+              sql: 'SELECT id FROM faro_planning WHERE source_key = ?',
+              args: [sourceKey],
+            });
+            if (match.rows.length) return;
           }
-        }
-        await persistRecord(tx, record);
-        await persistLinks(tx, record);
-        await audit(tx, before, record, now);
-        if (
-          type === 'goals' &&
-          before &&
-          record.currentValue !== before.currentValue &&
-          record.currentValue !== undefined
-        ) {
-          const measurement: FaroRecord = {
+          for (const targetId of [...slot.interestIds, ...(slot.habitIds ?? [])]) {
+            const target = await getStored(tx, targetId);
+            if (!target || target.status !== 'active')
+              throw new DataError(
+                'No se planifican prácticas de intereses o hábitos en pausa o archivados. Revisa su estado primero.',
+                409,
+              );
+          }
+          const plan: WeekPlan = {
+            ...slot,
             id: randomUUID(),
-            type: 'progress',
-            name: `Medición: ${record.name}`,
-            description: '',
-            status: 'completed',
-            parentId: record.id,
-            value: record.currentValue,
-            occurredAt: now,
+            kind: 'plan',
+            weekStart: week,
+            day,
+            status: 'pending',
+            sourceKey,
             createdAt: now,
             updatedAt: now,
-            completedAt: now,
           };
-          await persistRecord(tx, measurement);
-          await persistLinks(tx, measurement);
-          await audit(tx, null, measurement, now);
+          result.push(await writePlanning(tx, plan));
+        };
+        if (command.action === 'save') {
+          const before = command.id ? await getPlanning(tx, command.id) : null;
+          if (before && (before.kind !== 'plan' || before.status !== 'pending'))
+            throw new DataError('Solo se editan prácticas pendientes', 409);
+          if (before?.kind === 'plan')
+            result.push(
+              await writePlanning(
+                tx,
+                {
+                  ...before,
+                  ...command.data,
+                  day: command.data.day,
+                  estimatedMinutes: command.data.estimatedMinutes,
+                  updatedAt: now,
+                },
+                before,
+              ),
+            );
+          else await makePlan(command.data, command.data.weekStart, command.data.day);
         }
-        if (type === 'progress') {
-          if (before?.parentId && before.parentId !== record.parentId)
-            await synchronizeGoalProgress(tx, before.parentId, now);
-          await synchronizeGoalProgress(tx, record.parentId, now);
+        if (command.action === 'cancel' || command.action === 'complete') {
+          const before = await getPlanning(tx, command.id);
+          if (before.kind !== 'plan') throw new DataError('Selecciona una práctica');
+          if (command.action === 'cancel') {
+            if (before.status !== 'pending')
+              throw new DataError('Solo puedes descartar prácticas pendientes', 409);
+            result.push(
+              await writePlanning(tx, { ...before, status: 'cancelled', updatedAt: now }, before),
+            );
+          } else {
+            if (before.status === 'completed') return [before];
+            if (before.status !== 'pending') throw new DataError('La práctica fue descartada', 409);
+            if (Date.parse(command.occurredAt) > Date.parse(now))
+              throw new DataError('Registra una sesión realizada, con fecha no futura');
+            const activity = await writeRecord(tx, 'activities', {
+              name: command.name,
+              description: '',
+              status: 'active',
+              interestIds: before.interestIds,
+              habitIds: before.habitIds,
+              projectIds: before.projectIds,
+              goalIds: before.goalIds,
+              occurredAt: command.occurredAt,
+              durationMinutes: command.durationMinutes,
+              notes: command.notes,
+              idempotencyKey: `plan:${before.id}`,
+            });
+            result.push(
+              await writePlanning(
+                tx,
+                { ...before, status: 'completed', activityId: activity.id, updatedAt: now },
+                before,
+              ),
+            );
+          }
         }
-        return record;
+        if (command.action === 'template') {
+          const rows = await tx.execute({
+            sql: "SELECT data FROM faro_planning WHERE kind='plan' AND week_start=?",
+            args: [command.weekStart],
+          });
+          const slots = rows.rows
+            .map((row) => parseJSON<WeekPlan>(row.data))
+            .filter((p) => p.status !== 'cancelled')
+            .map((p) => ({
+              ...slotFromPlan(p),
+              weekday: p.day ? daysBetween(p.weekStart, p.day) : undefined,
+            }));
+          if (!slots.length)
+            throw new DataError('Añade prácticas a la semana antes de guardarla como semana tipo');
+          result.push(
+            await writePlanning(tx, {
+              id: randomUUID(),
+              kind: 'template',
+              name: command.name,
+              slots,
+              createdAt: now,
+              updatedAt: now,
+            }),
+          );
+        }
+        if (command.action === 'apply') {
+          const template = await getPlanning(tx, command.templateId);
+          if (template.kind !== 'template') throw new DataError('Selecciona una semana tipo');
+          for (const [i, slot] of template.slots.entries()) {
+            const { weekday: day, ...data } = slot;
+            await makePlan(
+              data,
+              command.weekStart,
+              day === undefined ? undefined : addDays(command.weekStart, day),
+              `template:${template.id}:${command.weekStart}:${i}`,
+            );
+          }
+        }
+        if (command.action === 'copy') {
+          for (const id of [...new Set(command.ids)]) {
+            const source = await getPlanning(tx, id);
+            if (
+              source.kind !== 'plan' ||
+              source.status !== 'pending' ||
+              source.weekStart === command.weekStart
+            )
+              throw new DataError('Elige prácticas pendientes de otra semana', 409);
+            await makePlan(
+              slotFromPlan(source),
+              command.weekStart,
+              source.day
+                ? addDays(command.weekStart, daysBetween(source.weekStart, source.day))
+                : undefined,
+              `copy:${source.id}:${command.weekStart}`,
+            );
+          }
+        }
+        if (command.action === 'suggest') {
+          const snapshot = await getSnapshot({}, tx);
+          const existing = (
+            await tx.execute({
+              sql: "SELECT data FROM faro_planning WHERE kind='plan' AND week_start=?",
+              args: [command.weekStart],
+            })
+          ).rows.map((row) => parseJSON<WeekPlan>(row.data));
+          const today = dateKey(now, snapshot.settings.timezone);
+          for (const rhythm of weeklyRhythms(snapshot, command.weekStart, existing)) {
+            const habit = rhythm.habit;
+            if (habit.status !== 'active' || rhythm.excused || rhythm.remaining <= 0) continue;
+            const available = Array.from({ length: 7 }, (_, i) =>
+              addDays(command.weekStart, i),
+            ).filter(
+              (day) =>
+                day >= today &&
+                (habit.cadence !== 'custom' || habit.weekdays?.includes(weekday(day) % 7)) &&
+                (!habit.startDate || day >= habit.startDate) &&
+                (!habit.endDate || day <= habit.endDate),
+            );
+            if (!available.length) continue;
+            let index = existing.filter((p) => p.habitIds?.includes(habit.id)).length;
+            const slot = (estimatedMinutes?: number): PlanSlot => ({
+              name: habit.name,
+              interestIds: habit.interestIds ?? [],
+              habitIds: [habit.id],
+              projectIds: habit.projectIds,
+              goalIds: habit.goalIds,
+              estimatedMinutes,
+            });
+            if (habit.cadence === 'daily') {
+              for (const day of available) {
+                const actual = snapshot.records.filter(
+                  (r) =>
+                    isActivity(r) &&
+                    r.habitIds?.includes(habit.id) &&
+                    (r.occurredAt ?? r.createdAt) <= snapshot.generatedAt &&
+                    recordDate(r, snapshot.settings.timezone) === day,
+                );
+                const planned = existing.filter(
+                  (p) => p.status === 'pending' && p.day === day && p.habitIds?.includes(habit.id),
+                );
+                const done = rhythm.minutes
+                  ? actual.reduce((n, r) => n + (r.durationMinutes ?? 0), 0)
+                  : actual.length;
+                const scheduled = rhythm.minutes
+                  ? planned.reduce((n, p) => n + (p.estimatedMinutes ?? 0), 0)
+                  : planned.length;
+                const missing = Math.max(
+                  0,
+                  (rhythm.minutes ? (habit.targetMinutes ?? 0) : (habit.targetCount ?? 1)) -
+                    done -
+                    scheduled,
+                );
+                const count = rhythm.minutes
+                  ? Number(missing > 0)
+                  : Math.min(200, Math.ceil(missing));
+                for (let i = 0; i < count; i++)
+                  await makePlan(
+                    slot(rhythm.minutes ? Math.min(1440, missing) : undefined),
+                    command.weekStart,
+                    day,
+                    `habit:${habit.id}:${command.weekStart}:${index++}`,
+                  );
+              }
+            } else if (habit.cadence === 'monthly' || habit.cadence === 'interval') {
+              // Keep each period separate; a missed earlier period is never added to a later one.
+              const actualRecords = snapshot.records.filter(
+                (r) => !isActivity(r) || (r.occurredAt ?? r.createdAt) <= snapshot.generatedAt,
+              );
+              const periods = habitPeriods(
+                habit,
+                actualRecords,
+                snapshot.settings,
+                command.weekStart,
+                addDays(command.weekStart, 6),
+                endOfDay(addDays(command.weekStart, 6), snapshot.settings.timezone),
+                snapshot.history,
+              );
+              for (const period of periods) {
+                const related = (
+                  await tx.execute({
+                    sql: "SELECT data FROM faro_planning WHERE kind='plan' AND week_start >= ? AND week_start <= ?",
+                    args: [startOfWeek(period.periodStart), period.periodEnd],
+                  })
+                ).rows.map((row) => parseJSON<WeekPlan>(row.data));
+                if (period.excused || period.periodEnd < today) continue;
+                const periodPlans = related.filter(
+                  (p) =>
+                    p.status === 'pending' &&
+                    p.habitIds?.includes(habit.id) &&
+                    p.day &&
+                    p.day >= period.periodStart &&
+                    p.day <= period.periodEnd,
+                );
+                const flexible = related.filter(
+                  (p) => p.status === 'pending' && p.habitIds?.includes(habit.id) && !p.day,
+                );
+                const missing = Math.max(
+                  0,
+                  (rhythm.minutes ? (period.targetMinutes ?? 0) : (period.targetCount ?? 1)) -
+                    (rhythm.minutes ? period.minutes : period.sessions) -
+                    (rhythm.minutes
+                      ? [...periodPlans, ...flexible].reduce(
+                          (n, p) => n + (p.estimatedMinutes ?? 0),
+                          0,
+                        )
+                      : periodPlans.length + flexible.length),
+                );
+                const number = rhythm.minutes
+                  ? Number(missing > 0)
+                  : Math.min(200, Math.ceil(missing));
+                const day = available.find(
+                  (day) => day >= period.periodStart && day <= period.periodEnd,
+                );
+                if (!day) continue;
+                for (let i = 0; i < number; i++)
+                  await makePlan(
+                    slot(rhythm.minutes ? Math.min(1440, missing) : undefined),
+                    command.weekStart,
+                    day,
+                    `habit:${habit.id}:${command.weekStart}:${index++}`,
+                  );
+              }
+            } else {
+              const number = rhythm.minutes ? 1 : Math.min(200, Math.ceil(rhythm.remaining));
+              for (let i = 0; i < number; i++) {
+                const day =
+                  habit.cadence === 'custom' ? available[i % available.length] : undefined;
+                await makePlan(
+                  slot(rhythm.minutes ? Math.min(1440, rhythm.remaining) : undefined),
+                  command.weekStart,
+                  day,
+                  `habit:${habit.id}:${command.weekStart}:${index++}`,
+                );
+              }
+            }
+          }
+        }
+        if (command.action === 'deleteTemplate') {
+          const before = await getPlanning(tx, command.id);
+          if (before.kind !== 'template') throw new DataError('Solo se eliminan semanas tipo');
+          const change: PlanningHistory = {
+            id: randomUUID(),
+            itemId: before.id,
+            occurredAt: now,
+            before,
+            after: null,
+          };
+          await tx.execute({
+            sql: 'INSERT INTO faro_planning_history(id,item_id,occurred_at,data) VALUES (?,?,?,?)',
+            args: [change.id, change.itemId, now, JSON.stringify(change)],
+          });
+          await tx.execute({ sql: 'DELETE FROM faro_planning WHERE id=?', args: [before.id] });
+        }
+        return result;
       });
     } catch (error) {
       exposeError(error);
@@ -646,21 +1097,32 @@ export async function createRepository(client: Client, options: { migrate?: bool
   }
 
   async function exportData(): Promise<FaroBackup> {
-    const snapshot = await getSnapshot();
-    return {
-      format: 'faro',
-      version: 1,
-      exportedAt: snapshot.generatedAt,
-      records: snapshot.records,
-      settings: snapshot.settings,
-      history: snapshot.history,
-    };
+    return transaction(
+      client,
+      async (tx) => {
+        const snapshot = await getSnapshot({}, tx);
+        return {
+          format: 'faro',
+          version: 1,
+          exportedAt: snapshot.generatedAt,
+          records: snapshot.records,
+          settings: snapshot.settings,
+          history: snapshot.history,
+          planning: await storedPlanning(tx),
+          planningHistory: (
+            await tx.execute('SELECT data FROM faro_planning_history ORDER BY occurred_at,id')
+          ).rows.map((row) => parseJSON<PlanningHistory>(row.data)),
+        };
+      },
+      'read',
+    );
   }
 
   function preview(
     backup: FaroBackup,
     existing: Map<string, FaroRecord>,
     currentSettings: Settings,
+    currentPlanning: PlanningItem[],
   ): ImportPreview {
     const byType: Partial<Record<EntityType, number>> = {};
     let duplicates = 0;
@@ -709,22 +1171,62 @@ export async function createRepository(client: Client, options: { migrate?: bool
             'invalid_backup_relation',
           );
       }
+    const planningSummary = {
+      total: backup.planning?.length ?? 0,
+      newRecords: 0,
+      duplicates: 0,
+      conflicts: 0,
+    };
+    const planMap = new Map(currentPlanning.map((item) => [item.id, item]));
+    const mergedPlans = new Map(planMap);
+    for (const item of backup.planning ?? []) {
+      const old = planMap.get(item.id);
+      if (old) {
+        if (canonical(old) === canonical(item)) planningSummary.duplicates++;
+        else planningSummary.conflicts++;
+      } else {
+        planningSummary.newRecords++;
+        mergedPlans.set(item.id, item);
+      }
+    }
+    // Validate incoming references even when an existing ID will be kept unchanged.
+    for (const item of backup.planning ?? [])
+      for (const link of planningRelations(item)) {
+        const target = merged.get(link.targetId);
+        if (!target || !link.expected.includes(target.type))
+          throw new DataError('El respaldo contiene relaciones de planificación inválidas', 409);
+      }
+    const planKeys = new Set<string>();
+    for (const item of mergedPlans.values()) {
+      if (item.kind === 'plan' && item.sourceKey) {
+        if (planKeys.has(item.sourceKey))
+          throw new DataError('El respaldo duplica el origen de una práctica', 409);
+        planKeys.add(item.sourceKey);
+      }
+      for (const link of planningRelations(item)) {
+        const target = merged.get(link.targetId);
+        if (!target || !link.expected.includes(target.type))
+          throw new DataError('El respaldo contiene relaciones de planificación inválidas', 409);
+      }
+    }
     const signature = [...existing.values()]
       .map((record) => [record.id, record.updatedAt])
       .sort(([a], [b]) => a!.localeCompare(b!));
     return {
       version: 1,
+      planning: planningSummary,
       total: backup.records.length,
       newRecords: backup.records.length - duplicates - conflicts,
       duplicates,
       conflicts,
       byType,
-      warnings: conflicts
-        ? [
-            'Los registros existentes que difieren se conservarán sin cambios. Solo se incorporan IDs nuevos.',
-          ]
-        : [],
-      digest: hash(canonical({ backup, signature, currentSettings })),
+      warnings:
+        conflicts || planningSummary.conflicts
+          ? [
+              'Los registros existentes que difieren se conservarán sin cambios. Solo se incorporan IDs nuevos.',
+            ]
+          : [],
+      digest: hash(canonical({ backup, signature, currentSettings, currentPlanning })),
     };
   }
 
@@ -733,7 +1235,8 @@ export async function createRepository(client: Client, options: { migrate?: bool
       const backup = parseBackup(value);
       return await transaction(
         client,
-        async (tx) => preview(backup, await allRecords(tx), await storedSettings(tx)),
+        async (tx) =>
+          preview(backup, await allRecords(tx), await storedSettings(tx), await storedPlanning(tx)),
         'read',
       );
     } catch (error) {
@@ -749,7 +1252,8 @@ export async function createRepository(client: Client, options: { migrate?: bool
       const backup = parseBackup(value);
       return await transaction(client, async (tx) => {
         const existing = await allRecords(tx);
-        const summary = preview(backup, existing, await storedSettings(tx));
+        const currentPlanning = await storedPlanning(tx);
+        const summary = preview(backup, existing, await storedSettings(tx), currentPlanning);
         if (!options?.digest || options.digest !== summary.digest)
           throw new DataError(
             'La base o el archivo cambiaron. Previsualiza nuevamente antes de importar.',
@@ -784,6 +1288,21 @@ export async function createRepository(client: Client, options: { migrate?: bool
           incoming.filter((record) => record.type === 'progress').map((record) => record.parentId),
         ))
           await synchronizeGoalProgress(tx, parentId, new Date().toISOString());
+        const existingPlanIds = new Set(currentPlanning.map((item) => item.id));
+        const planningHistoryIds = new Set(
+          (backup.planningHistory ?? []).map((change) => change.itemId),
+        );
+        for (const item of backup.planning ?? [])
+          if (!existingPlanIds.has(item.id)) {
+            if (planningHistoryIds.has(item.id)) await persistPlanning(tx, item);
+            else await writePlanning(tx, item);
+          }
+        for (const change of backup.planningHistory ?? [])
+          if (!existingPlanIds.has(change.itemId))
+            await tx.execute({
+              sql: 'INSERT OR IGNORE INTO faro_planning_history(id,item_id,occurred_at,data) VALUES (?,?,?,?)',
+              args: [change.id, change.itemId, change.occurredAt, JSON.stringify(change)],
+            });
         if (options.restoreSettings)
           await tx.execute({
             sql: 'INSERT INTO faro_settings(id,data) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
@@ -842,6 +1361,8 @@ export async function createRepository(client: Client, options: { migrate?: bool
       options?: { type?: EntityType; limit?: number; offset?: number },
     ) => withClientLock(client, () => getRelatedRecords(id, options)),
     getSnapshot,
+    listPlanning: (week?: string) => withClientLock(client, () => listPlanning(week)),
+    planningCommand,
     saveRecord,
     deleteRecord,
     getSettings: () => withClientLock(client, getSettings),
@@ -901,3 +1422,7 @@ export const consumeLoginAttempt = async (key: string, now?: number) =>
   (await getRepository()).consumeLoginAttempt(key, now);
 export const clearLoginAttempts = async (key: string) =>
   (await getRepository()).clearLoginAttempts(key);
+
+export const listPlanning = async (week?: string) => (await getRepository()).listPlanning(week);
+export const planningCommand = async (value: unknown) =>
+  (await getRepository()).planningCommand(value);

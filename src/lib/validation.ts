@@ -1,3 +1,4 @@
+import { planningItemSchema, planningHistorySchema } from '../domains/planning/validation';
 import { z } from 'zod';
 import {
   DEFAULT_SETTINGS,
@@ -214,6 +215,8 @@ const historySchema = z
   .strict();
 const backupSchema = z
   .object({
+    planning: z.array(planningItemSchema).max(250_000).default([]),
+    planningHistory: z.array(planningHistorySchema).max(1_000_000).default([]),
     format: z.literal('faro'),
     version: z.literal(1),
     exportedAt: instant,
@@ -225,6 +228,17 @@ const backupSchema = z
 
 export function parseBackup(value: unknown): FaroBackup {
   const parsed = backupSchema.parse(value);
+  if (
+    new Set(parsed.planning.map((item) => item.id)).size !== parsed.planning.length ||
+    new Set(parsed.planningHistory.map((item) => item.id)).size !== parsed.planningHistory.length
+  )
+    throw new z.ZodError([
+      {
+        code: 'custom',
+        path: ['planning'],
+        message: 'El respaldo contiene IDs de planificación duplicados',
+      },
+    ]);
   const unique = new Set<string>();
   for (const record of parsed.records) {
     if (unique.has(record.id))

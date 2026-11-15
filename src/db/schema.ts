@@ -90,3 +90,55 @@ export const accessAttempts = sqliteTable('faro_access_attempts', {
   blockedUntil: integer('blocked_until').notNull().default(0),
   windowStart: integer('window_start').notNull(),
 });
+
+/** Planning stays separate from actual sessions and their analytics. */
+export const planning = sqliteTable(
+  'faro_planning',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull(),
+    weekStart: text('week_start'),
+    sourceKey: text('source_key'),
+    data: text('data', { mode: 'json' })
+      .$type<import('../domains/planning/types').PlanningItem>()
+      .notNull(),
+  },
+  (table) => [
+    index('faro_planning_week_idx').on(table.weekStart),
+    uniqueIndex('faro_planning_source_idx').on(table.sourceKey),
+    check('faro_planning_kind_check', sql`${table.kind} IN ('plan','template')`),
+    check('faro_planning_data_check', sql`json_valid(${table.data})`),
+  ],
+);
+export const planningLinks = sqliteTable(
+  'faro_planning_links',
+  {
+    sourceId: text('source_id')
+      .notNull()
+      .references(() => planning.id, { onDelete: 'cascade' }),
+    targetId: text('target_id')
+      .notNull()
+      .references(() => records.id, { onDelete: 'restrict' }),
+    relation: text('relation').notNull(),
+  },
+  (table) => [
+    uniqueIndex('faro_planning_links_unique_idx').on(
+      table.sourceId,
+      table.targetId,
+      table.relation,
+    ),
+    index('faro_planning_links_target_idx').on(table.targetId),
+  ],
+);
+export const planningHistory = sqliteTable(
+  'faro_planning_history',
+  {
+    id: text('id').primaryKey(),
+    itemId: text('item_id').notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    data: text('data', { mode: 'json' })
+      .$type<import('../domains/planning/types').PlanningHistory>()
+      .notNull(),
+  },
+  (table) => [index('faro_planning_history_item_idx').on(table.itemId, table.occurredAt)],
+);

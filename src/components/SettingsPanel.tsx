@@ -92,7 +92,7 @@ export default function SettingsPanel({ snapshot }: { snapshot: FaroSnapshot }) 
       !backup ||
       !preview ||
       !window.confirm(
-        `¿Importar ${preview.newRecords} registros nuevos? Los existentes se conservarán.`,
+        `¿Importar ${preview.newRecords} registros y ${preview.planning?.newRecords ?? 0} planes o semanas tipo nuevos? Los existentes se conservarán.`,
       )
     )
       return;
@@ -299,6 +299,15 @@ export default function SettingsPanel({ snapshot }: { snapshot: FaroSnapshot }) 
                   <dt>Conflictos conservados</dt>
                   <dd>{preview.conflicts}</dd>
                 </div>
+                {preview.planning && (
+                  <div>
+                    <dt>Planes y semanas tipo</dt>
+                    <dd>
+                      {preview.planning.newRecords} nuevos · {preview.planning.duplicates}{' '}
+                      duplicados · {preview.planning.conflicts} conflictos conservados
+                    </dd>
+                  </div>
+                )}
               </dl>
               {preview.warnings.map((warning, i) => (
                 <p className="muted" key={i}>

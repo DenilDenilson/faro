@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 
 /** Increment whenever a new ordered migration is generated and reviewed. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Only development and the explicit deployment CLI call the migrator. */
 export async function migrateDatabase(client: Client): Promise<void> {

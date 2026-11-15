@@ -118,6 +118,8 @@ export interface ListRecordOptions {
   parentId?: string;
 }
 export interface FaroBackup {
+  planning?: import('../domains/planning/types').PlanningItem[];
+  planningHistory?: import('../domains/planning/types').PlanningHistory[];
   format: 'faro';
   version: 1;
   exportedAt: string;
@@ -126,6 +128,7 @@ export interface FaroBackup {
   history: HistoryEntry[];
 }
 export interface ImportPreview {
+  planning?: { total: number; newRecords: number; duplicates: number; conflicts: number };
   version: 1;
   total: number;
   newRecords: number;

@@ -1,4 +1,15 @@
+export interface TimerPlan {
+  id: string;
+  name: string;
+  weekStart: string;
+  interestId: string;
+  habitId?: string;
+  projectId?: string;
+  goalId?: string;
+  notes?: string;
+}
 export interface TimerState {
+  plan?: TimerPlan;
   status: 'idle' | 'running' | 'paused';
   startedAt: string | null;
   runningSince: number | null;
@@ -61,6 +72,29 @@ export function readTimer(value: string | null): TimerState | null {
     )
       return null;
     if (v.status === 'running' && v.runningSince === null) return null;
+    if (v.plan !== undefined) {
+      if (!v.plan || typeof v.plan !== 'object') return null;
+      const p = v.plan as Record<string, unknown>;
+      if (
+        typeof p.id !== 'string' ||
+        !p.id ||
+        p.id.length > 160 ||
+        typeof p.name !== 'string' ||
+        p.name.length > 200 ||
+        typeof p.weekStart !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(p.weekStart) ||
+        typeof p.interestId !== 'string' ||
+        !p.interestId ||
+        p.interestId.length > 160
+      )
+        return null;
+      for (const key of ['habitId', 'projectId', 'goalId', 'notes'])
+        if (
+          p[key] !== undefined &&
+          (typeof p[key] !== 'string' || String(p[key]).length > (key === 'notes' ? 20000 : 160))
+        )
+          return null;
+    }
     return timer as TimerState;
   } catch {
     return null;

@@ -5,7 +5,10 @@ import AttentionRadar from '../components/AttentionRadar';
 import Analytics from '../components/Analytics';
 import Timeline from '../components/Timeline';
 import Alerts from '../components/Alerts';
-import { getSnapshot } from '../domains/data/repository';
+import { getSnapshot, listPlanning } from '../domains/data/repository';
+import { planningView } from '../domains/planning';
+import { monday } from '../domains/planning/validation';
+import { dateKey, startOfWeek } from '../domains/analytics/dates';
 import {
   metadataSnapshot as compactMetadata,
   getEntityPage,
@@ -13,7 +16,6 @@ import {
 } from '../domains/data/views';
 import { buildAnalytics } from '../domains/analytics';
 import { buildTimeline } from '../domains/timeline';
-import { attentionFor } from '../domains/attention';
 import { buildAlerts } from '../domains/notifications';
 import type { EntityType } from '../lib/types';
 const modules: Record<string, { title: string; subtitle: string; type?: EntityType }> = {
@@ -71,8 +73,8 @@ const modules: Record<string, { title: string; subtitle: string; type?: EntityTy
     type: 'learnings',
   },
   attention: {
-    title: 'Tu radar de atención.',
-    subtitle: 'Mantén visibles tus intereses, respeta sus ritmos y elige qué te gustaría retomar.',
+    title: 'Tu semana, a tu ritmo.',
+    subtitle: 'Elige qué cultivar, distribuye tus prácticas y reconoce lo que realmente hiciste.',
   },
   analytics: {
     title: 'Tu tiempo, en perspectiva.',
@@ -115,30 +117,20 @@ const timeline =
         snapshot.history,
       )
     : [];
-const attention =
+const planningWeek =
   module === 'attention'
-    ? snapshot.records
-        .filter((record) => record.type === 'interests' && record.status !== 'archived')
-        .map((interest) => ({
-          interest: {
-            id: interest.id,
-            type: interest.type,
-            name: interest.name,
-            description: '',
-            status: interest.status,
-            createdAt: interest.createdAt,
-            updatedAt: interest.updatedAt,
-            areaId: interest.areaId,
-          },
-          attention: attentionFor(
-            interest,
-            snapshot.records,
-            snapshot.settings,
-            now,
-            snapshot.history,
-          ),
-        }))
-    : [];
+    ? monday.safeParse(
+        Astro.url.searchParams.get('week') ??
+          startOfWeek(dateKey(snapshot.generatedAt, snapshot.settings.timezone)),
+      )
+    : undefined;
+const selectedWeek = planningWeek?.success
+  ? planningWeek.data
+  : startOfWeek(dateKey(snapshot.generatedAt, snapshot.settings.timezone));
+const planner =
+  module === 'attention'
+    ? planningView(snapshot, await listPlanning(selectedWeek), selectedWeek)
+    : undefined;
 const alerts =
   module === 'alerts'
     ? buildAlerts(snapshot.records, snapshot.settings, now, snapshot.history)
@@ -156,9 +148,7 @@ const alerts =
       filters={filters}
     />
   )}
-  {module === 'attention' && (
-    <AttentionRadar client:load snapshot={metadataSnapshot} initialRows={attention} />
-  )}
+  {module === 'attention' && planner && <AttentionRadar client:load initialView={planner} />}
   {module === 'analytics' && analytics && (
     <Analytics client:load snapshot={metadataSnapshot} initialStats={analytics} />
   )}

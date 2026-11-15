@@ -17,7 +17,7 @@ import { apiRequest, formatDate, formatMinutes, localDateTime } from '../lib/cli
 import { Button } from './ui/button';
 import { habitProgress, type HabitPeriod } from '../domains/habits';
 import { weeklySummary } from '../domains/reviews';
-import { isActivity } from '../domains/analytics/dates';
+import { addDays, isActivity } from '../domains/analytics/dates';
 import {
   allocatedMinutesForArea,
   allocatedMinutesForInterest,
@@ -701,6 +701,19 @@ export default function RecordDetail({
             {record.type === 'reviews' && (
               <section className="stack">
                 <p className="muted">Semana que comienza el {date(record.weekStart)}</p>
+                {record.weekStart && (
+                  <div className="button-row">
+                    <a className="button" href={`/attention?week=${record.weekStart}`}>
+                      Ver esta semana en el radar
+                    </a>
+                    <a
+                      className="button button-primary"
+                      href={`/attention?week=${addDays(record.weekStart, 7)}`}
+                    >
+                      Preparar la próxima semana
+                    </a>
+                  </div>
+                )}
                 {(
                   [
                     ['reflections', 'Reflexiones'],

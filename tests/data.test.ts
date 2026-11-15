@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createClient, type Client } from '@libsql/client';
 import { createRepository, type FaroRepository } from '../src/domains/data/repository';
-import { migrateDatabase } from '../src/db/migrations';
+import { migrateDatabase, SCHEMA_VERSION } from '../src/db/migrations';
 import { DEFAULT_SETTINGS, type FaroBackup } from '../src/lib/types';
 import { parseRecordInput } from '../src/lib/validation';
 
@@ -67,7 +67,7 @@ describe('persistencia e integridad FARO', () => {
     );
     expect(
       (await client.execute('SELECT count(*) AS count FROM faro_migrations')).rows[0]?.count,
-    ).toBe(1);
+    ).toBe(SCHEMA_VERSION);
   });
 
   it('persiste relaciones tipadas y protege entidades referenciadas', async () => {

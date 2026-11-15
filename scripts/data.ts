@@ -34,6 +34,14 @@ async function* backupChunks(backup: FaroBackup): AsyncGenerator<string> {
   for (let index = 0; index < backup.history.length; index++) {
     yield `${index ? ',' : ''}${JSON.stringify(backup.history[index])}`;
   }
+  for (const [key, entries] of [
+    ['planning', backup.planning ?? []],
+    ['planningHistory', backup.planningHistory ?? []],
+  ] as const) {
+    yield '],"' + key + '":[';
+    for (let index = 0; index < entries.length; index++)
+      yield (index ? ',' : '') + JSON.stringify(entries[index]);
+  }
   yield ']}\n';
 }
 
@@ -119,6 +127,8 @@ async function run(): Promise<void> {
             file,
             records: backup.records.length,
             history: backup.history.length,
+            planning: backup.planning?.length ?? 0,
+            planningHistory: backup.planningHistory?.length ?? 0,
             sha256,
           },
           null,

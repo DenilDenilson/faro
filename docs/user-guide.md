@@ -63,17 +63,23 @@ El cronómetro permite iniciar, pausar, reanudar y finalizar una sesión. Al fin
 
 Una sesión vinculada a varios conceptos conserva una sola duración en los totales generales. Las distribuciones estadísticas reparten su tiempo entre los intereses para que la suma siga siendo coherente. En el detalle de una entidad se muestran sus sesiones vinculadas; esos subtotales de contexto no deben sumarse entre sí como si fueran actividades distintas.
 
-## Radar de atención
+## Radar y planificación semanal
 
-El radar organiza los intereses por área y permite filtrar por estado, área y nombre. Sus señales son:
+El radar abre en **Mi semana**, de lunes a domingo, según tu zona horaria. Navega a otras semanas, filtra por área y muestra u oculta el fin de semana. Las sesiones realizadas y las prácticas previstas tienen estilos distintos. La pestaña **Estado de intereses** conserva el radar por frecuencia, prioridad y temporada, incluidas las pausas.
 
-- **Al día**: el tiempo desde la última sesión está dentro del ritmo configurado.
-- **Próximo a vencer**: se alcanzó el umbral de aviso, antes de superar la frecuencia deseada.
-- **Desatendido**: se alcanzó o superó el intervalo que definiste para ese interés.
-- **En pausa**: decidiste suspender temporalmente su atención.
-- **Sin datos suficientes**: todavía no existe evidencia suficiente para evaluar su atención.
+1. Pulsa **Nueva práctica** o **Añadir** dentro de un día. Describe algo concreto, por ejemplo «Practicar cambios entre acordes», selecciona un interés y, si corresponde, un hábito, proyecto u objetivo.
+2. El día y los minutos estimados son opcionales. Las prácticas sin día aparecen en **Por ubicar**. Puedes añadir notas con el siguiente paso o el material que quieres trabajar.
+3. Arrastra una práctica a otro día o ábrela y usa **Mover a**. Desde **Editar práctica** puedes quitar el día o la estimación. Cada día indica las prácticas previstas, el tiempo estimado conocido y cuántas no tienen estimación.
+4. **Sugerir desde hábitos** añade propuestas para las metas pendientes. Las cuotas semanales flexibles quedan por ubicar; los días elegidos y los hábitos diarios aportan sugerencias de día. No añade deudas de días anteriores. Repetir la acción respeta lo ya planificado. Puedes editar o descartar cada propuesta.
+5. Desde una práctica puedes **Registrar sesión**, confirmar fecha y minutos reales, o **Iniciar cronómetro**. Los vínculos se conservan y una sesión se registra una sola vez, incluso al reintentar. El cronómetro conserva la práctica tras recargar. Para registrar una actividad espontánea sigue disponible **Registrar actividad**.
 
-Cada tarjeta explica su resultado, la frecuencia del interés y cuánto tiempo lleva sin practicarse. La prioridad y la temporada aportan contexto; no cambian una frecuencia universal, porque cada interés conserva la suya. Las pausas quedan registradas y se descuentan conforme a las reglas documentadas en [Fórmulas](formulas.md).
+**Ritmos y progreso** separa lo realizado de lo previsto. Los hábitos conservan sus ventanas propias: una meta mensual sigue siendo mensual y un intervalo conserva sus períodos. Las pausas se respetan. Un plan no actualiza el cumplimiento, el tiempo real, la última atención ni las medidas de objetivos y proyectos.
+
+En **Semanas tipo**, guarda la distribución de la semana con un nombre y aplícala a la semana visible. Se copian las intenciones y sus notas, nunca las actividades realizadas. Aplicar la misma semana tipo otra vez a la misma semana no duplica sus prácticas. Puedes eliminar una semana tipo sin borrar las prácticas que ya creaste con ella.
+
+**Cerrar semana** muestra lo realizado y los pendientes, abre la revisión semanal para escribir o consultar tus reflexiones y permite elegir qué prácticas retomar la semana siguiente. Los pendientes anteriores también se pueden seleccionar desde **Por ubicar**. No se trasladan automáticamente: puedes conservarlos como historia o descartarlos para su semana.
+
+Los planes y las semanas tipo se guardan en Turso y se incluyen con sus relaciones e historial en los respaldos. Las notas de las revisiones se mantienen en la sección **Revisión semanal**.
 
 ## Estadísticas
 
