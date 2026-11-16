@@ -8,6 +8,16 @@ Las sesiones conservan un instante ISO. Para agruparlas se transforma ese instan
 
 No se incluyen sesiones futuras en el resumen de actividad realizada. Las fechas inicial/final de un filtro son inclusivas. La comparación utiliza el mismo número de días inmediatamente anteriores, y se expresa como diferencia de minutos, sin inventar un porcentaje cuando el período anterior carece de datos.
 
+## Visión, fuentes y capacidades
+
+La estrategia personal se guarda en `faro_strategy`, con relaciones tipadas en `faro_strategy_links` y `faro_strategy_record_links` e historial en `faro_strategy_history`. Las fuentes son cuerpo, dinero y tiempo; sus indicadores son definidos por el usuario y no tienen valores iniciales ficticios.
+
+La observación actual de un indicador es su última medición activa con fecha no futura, ordenada por fecha, creación e ID para resolver empates. Cero es un dato válido. Si no hay observaciones, el valor es desconocido. Las unidades se conservan y no se agregan entre indicadores. Las comparaciones con mínimos y máximos solo describen referencias personales, sin generar una puntuación de salud, riqueza o poder global. Los indicadores con mediciones conservan su unidad y fuente.
+
+Las etapas de claves son declaraciones explícitas. Una clave aplicada requiere un ejemplo escrito o una actividad o aprendizaje relacionado; las sesiones futuras o anuladas no sirven como evidencia. Registrar una práctica no cambia automáticamente la etapa. Los objetivos mantienen sus medidas e hitos; los planes y observaciones de recursos no suman avances.
+
+Las actividades nuevas conservan el contexto de visión y capacidades asociado a sus hábitos, proyectos y objetivos. Los cambios posteriores no reescriben esas asociaciones históricas. Las revisiones de rumbo conservan su contenido e historial y las revisiones semanales admiten observaciones sobre dirección, recursos y capacidades.
+
 ## Radar de atención
 
 Cada interés tiene su propia frecuencia `frequencyDays`. La referencia es su última sesión o, si no existe, su creación. Un cambio explícito de frecuencia inicia una nueva ventana desde su fecha de modificación. El historial anterior se conserva y puede reconstruirse a partir del registro de cambios.

@@ -1,3 +1,4 @@
+import { StrategyContext } from './StrategyConnections';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRight,
@@ -697,6 +698,24 @@ export default function RecordDetail({
                   </div>
                 ))}
               </section>
+            )}
+            <StrategyContext record={record} snapshot={snapshot} />
+            {(
+              [
+                ['influenceActions', 'Acciones bajo mi influencia'],
+                ['externalFactors', 'Factores externos'],
+                ['alternativePlan', 'Alternativa ante obstáculos'],
+                ['directionReview', 'Revisión de rumbo'],
+                ['resourceReview', 'Revisión de recursos'],
+                ['capabilityReview', 'Revisión de capacidades'],
+              ] as const
+            ).map(([field, label]) =>
+              record[field] ? (
+                <section className="stack" key={field}>
+                  <h3>{label}</h3>
+                  <p className="preserve-lines">{record[field]}</p>
+                </section>
+              ) : null,
             )}
             {record.type === 'reviews' && (
               <section className="stack">

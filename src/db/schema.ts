@@ -142,3 +142,78 @@ export const planningHistory = sqliteTable(
   },
   (table) => [index('faro_planning_history_item_idx').on(table.itemId, table.occurredAt)],
 );
+
+export const strategy = sqliteTable(
+  'faro_strategy',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull(),
+    status: text('status').notNull(),
+    indicatorId: text('indicator_id'),
+    occurredAt: text('occurred_at'),
+    data: text('data', { mode: 'json' })
+      .$type<import('../domains/strategy/types').StrategyItem>()
+      .notNull(),
+  },
+  (table) => [
+    index('faro_strategy_kind_status_idx').on(table.kind, table.status),
+    index('faro_strategy_indicator_date_idx').on(table.indicatorId, table.occurredAt),
+    check(
+      'faro_strategy_kind_check',
+      sql`${table.kind} IN ('vision','key','indicator','measurement','review')`,
+    ),
+    check('faro_strategy_data_check', sql`json_valid(${table.data})`),
+  ],
+);
+export const strategyLinks = sqliteTable(
+  'faro_strategy_links',
+  {
+    sourceId: text('source_id')
+      .notNull()
+      .references(() => strategy.id, { onDelete: 'cascade' }),
+    targetId: text('target_id')
+      .notNull()
+      .references(() => strategy.id, { onDelete: 'restrict' }),
+    relation: text('relation').notNull(),
+  },
+  (table) => [
+    uniqueIndex('faro_strategy_links_unique_idx').on(
+      table.sourceId,
+      table.targetId,
+      table.relation,
+    ),
+    index('faro_strategy_links_target_idx').on(table.targetId),
+  ],
+);
+export const strategyRecordLinks = sqliteTable(
+  'faro_strategy_record_links',
+  {
+    recordId: text('record_id')
+      .notNull()
+      .references(() => records.id, { onDelete: 'restrict' }),
+    strategyId: text('strategy_id')
+      .notNull()
+      .references(() => strategy.id, { onDelete: 'restrict' }),
+    relation: text('relation').notNull(),
+  },
+  (table) => [
+    uniqueIndex('faro_strategy_record_links_unique_idx').on(
+      table.recordId,
+      table.strategyId,
+      table.relation,
+    ),
+    index('faro_strategy_record_links_target_idx').on(table.strategyId),
+  ],
+);
+export const strategyHistory = sqliteTable(
+  'faro_strategy_history',
+  {
+    id: text('id').primaryKey(),
+    itemId: text('item_id').notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    data: text('data', { mode: 'json' })
+      .$type<import('../domains/strategy/types').StrategyHistory>()
+      .notNull(),
+  },
+  (table) => [index('faro_strategy_history_item_date_idx').on(table.itemId, table.occurredAt)],
+);

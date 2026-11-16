@@ -27,6 +27,16 @@ export interface FaroRecord {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  visionIds?: string[];
+  powerKeyIds?: string[];
+  resourceTypes?: import('../domains/strategy/types').ResourceType[];
+  purpose?: string;
+  influenceActions?: string;
+  externalFactors?: string;
+  alternativePlan?: string;
+  directionReview?: string;
+  resourceReview?: string;
+  capabilityReview?: string;
   areaId?: string;
   interestIds?: string[];
   habitIds?: string[];
@@ -93,6 +103,7 @@ export interface HistoryEntry {
   after: FaroRecord | null;
 }
 export interface FaroSnapshot {
+  strategy?: import('../domains/strategy/types').StrategyItem[];
   records: FaroRecord[];
   settings: Settings;
   history: HistoryEntry[];
@@ -118,6 +129,8 @@ export interface ListRecordOptions {
   parentId?: string;
 }
 export interface FaroBackup {
+  strategy?: import('../domains/strategy/types').StrategyItem[];
+  strategyHistory?: import('../domains/strategy/types').StrategyHistory[];
   planning?: import('../domains/planning/types').PlanningItem[];
   planningHistory?: import('../domains/planning/types').PlanningHistory[];
   format: 'faro';
@@ -128,6 +141,7 @@ export interface FaroBackup {
   history: HistoryEntry[];
 }
 export interface ImportPreview {
+  strategy?: { total: number; newRecords: number; duplicates: number; conflicts: number };
   planning?: { total: number; newRecords: number; duplicates: number; conflicts: number };
   version: 1;
   total: number;

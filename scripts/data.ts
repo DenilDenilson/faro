@@ -35,6 +35,8 @@ async function* backupChunks(backup: FaroBackup): AsyncGenerator<string> {
     yield `${index ? ',' : ''}${JSON.stringify(backup.history[index])}`;
   }
   for (const [key, entries] of [
+    ['strategy', backup.strategy ?? []],
+    ['strategyHistory', backup.strategyHistory ?? []],
     ['planning', backup.planning ?? []],
     ['planningHistory', backup.planningHistory ?? []],
   ] as const) {

@@ -45,6 +45,7 @@ test('el acceso privado exige sesión y rechaza solicitudes de otro origen', asy
   const blocked = await request.get('/api/snapshot');
   expect(blocked.status()).toBe(401);
   expect((await request.get('/api/planning')).status()).toBe(401);
+  expect((await request.get('/api/strategy')).status()).toBe(401);
   await page.goto('/');
   await expect(page).toHaveURL(/\/login/);
   const bad = await request.post('/api/auth/login', { headers, data: { password: 'incorrecta' } });
@@ -60,6 +61,14 @@ test('el acceso privado exige sesión y rechaza solicitudes de otro origen', asy
       await request.post('/api/planning', {
         headers: { Origin: 'https://example.invalid' },
         data: { action: 'suggest', weekStart: '2026-11-09' },
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await request.post('/api/strategy', {
+        headers: { Origin: 'https://example.invalid' },
+        data: { data: { kind: 'vision', name: 'No autorizada' } },
       })
     ).status(),
   ).toBe(403);

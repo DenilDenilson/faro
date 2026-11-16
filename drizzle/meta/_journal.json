@@ -15,6 +15,13 @@
       "when": 1794760163730,
       "tag": "0001_swift_vision",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794790279777,
+      "tag": "0002_damp_joshua_kane",
+      "breakpoints": true
     }
   ]
 }

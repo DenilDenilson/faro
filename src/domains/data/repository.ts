@@ -1,3 +1,5 @@
+import * as strategic from '../strategy/storage';
+import type { StrategyItem } from '../strategy/types';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Client, InValue, Transaction } from '@libsql/client';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
@@ -38,16 +40,8 @@ import {
 } from '../analytics/dates';
 import { parseBackup, parseRecordInput, parseSettings } from '../../lib/validation';
 
-export class DataError extends Error {
-  constructor(
-    message: string,
-    public readonly status = 400,
-    public readonly code = 'invalid_data',
-  ) {
-    super(message);
-    this.name = 'DataError';
-  }
-}
+import { DataError } from '../../lib/data-error';
+export { DataError } from '../../lib/data-error';
 
 interface Link {
   targetId: string;
@@ -182,6 +176,7 @@ async function persistRecord(executor: Executor, record: FaroRecord): Promise<vo
 }
 
 async function persistLinks(executor: Executor, record: FaroRecord): Promise<void> {
+  await strategic.persistRecordStrategy(executor, record);
   await executor.execute({ sql: 'DELETE FROM faro_links WHERE source_id = ?', args: [record.id] });
   for (const link of relationLinks(record))
     await executor.execute({
@@ -448,6 +443,7 @@ export async function createRepository(client: Client, options: { migrate?: bool
       });
       const result: FaroSnapshot = {
         records: rows.rows.map((row) => parseJSON<FaroRecord>(row.data)),
+        strategy: await strategic.listStrategy(tx),
         settings: preferences.rows[0]
           ? parseSettings(parseJSON<Settings>(preferences.rows[0].data))
           : structuredClone(DEFAULT_SETTINGS),
@@ -505,7 +501,31 @@ export async function createRepository(client: Client, options: { migrate?: bool
     if (record.occurredAt) record.occurredAt = new Date(record.occurredAt).toISOString();
     if (type === 'progress' && record.occurredAt && record.occurredAt > now)
       record.occurredAt = now;
+    if (type === 'activities' && !before) {
+      const visions = new Set(record.visionIds ?? []);
+      const keys = new Set(record.powerKeyIds ?? []);
+      for (const id of [
+        ...(record.goalIds ?? []),
+        ...(record.projectIds ?? []),
+        ...(record.habitIds ?? []),
+      ]) {
+        const context = await getStored(tx, id);
+        for (const vision of context?.visionIds ?? []) visions.add(vision);
+        for (const key of context?.powerKeyIds ?? []) keys.add(key);
+        const contextual = await tx.execute({
+          sql: "SELECT s.id,s.kind FROM faro_strategy s JOIN faro_strategy_record_links l ON l.strategy_id=s.id WHERE l.record_id=? AND l.relation='context' AND s.kind IN ('vision','key')",
+          args: [id],
+        });
+        for (const row of contextual.rows) {
+          if (row.kind === 'vision') visions.add(String(row.id));
+          else keys.add(String(row.id));
+        }
+      }
+      if (visions.size) record.visionIds = [...visions];
+      if (keys.size) record.powerKeyIds = [...keys];
+    }
     await validateRelations(record, await referencedTypes(tx, record));
+    await strategic.validateRecordStrategy(tx, record);
     if (!recordId && record.idempotencyKey) {
       const matches = await tx.execute({
         sql: 'SELECT data FROM faro_records WHERE idempotency_key = ? LIMIT 1',
@@ -1015,6 +1035,10 @@ export async function createRepository(client: Client, options: { migrate?: bool
           );
         const now = new Date().toISOString();
         await audit(tx, record, null, now);
+        await tx.execute({
+          sql: "DELETE FROM faro_strategy_record_links WHERE record_id=? AND relation IN ('vision','key')",
+          args: [id],
+        });
         await tx.execute({ sql: 'DELETE FROM faro_records WHERE id = ?', args: [id] });
         if (record.type === 'progress') await synchronizeGoalProgress(tx, record.parentId, now);
       });
@@ -1108,6 +1132,8 @@ export async function createRepository(client: Client, options: { migrate?: bool
           records: snapshot.records,
           settings: snapshot.settings,
           history: snapshot.history,
+          strategy: await strategic.listStrategy(tx),
+          strategyHistory: await strategic.strategyHistory(tx),
           planning: await storedPlanning(tx),
           planningHistory: (
             await tx.execute('SELECT data FROM faro_planning_history ORDER BY occurred_at,id')
@@ -1123,6 +1149,7 @@ export async function createRepository(client: Client, options: { migrate?: bool
     existing: Map<string, FaroRecord>,
     currentSettings: Settings,
     currentPlanning: PlanningItem[],
+    currentStrategy: StrategyItem[],
   ): ImportPreview {
     const byType: Partial<Record<EntityType, number>> = {};
     let duplicates = 0;
@@ -1209,12 +1236,55 @@ export async function createRepository(client: Client, options: { migrate?: bool
           throw new DataError('El respaldo contiene relaciones de planificación inválidas', 409);
       }
     }
+    const strategySummary = {
+      total: backup.strategy?.length ?? 0,
+      newRecords: 0,
+      duplicates: 0,
+      conflicts: 0,
+    };
+    const oldStrategy = new Map(currentStrategy.map((item) => [item.id, item]));
+    const mergedStrategy = new Map(oldStrategy);
+    for (const item of backup.strategy ?? []) {
+      const old = oldStrategy.get(item.id);
+      if (old) {
+        if (canonical(old) === canonical(item)) strategySummary.duplicates++;
+        else strategySummary.conflicts++;
+      } else {
+        strategySummary.newRecords++;
+        mergedStrategy.set(item.id, item);
+      }
+    }
+    // Both incoming and retained records must resolve against the resulting state.
+    for (const item of [...mergedStrategy.values(), ...(backup.strategy ?? [])]) {
+      for (const edge of strategic.strategyEdges(item))
+        if (edge.id === item.id || mergedStrategy.get(edge.id)?.kind !== edge.kind)
+          throw new DataError('El respaldo contiene relaciones de estrategia inválidas', 409);
+      for (const id of item.recordIds ?? [])
+        if (!merged.has(id))
+          throw new DataError('El respaldo contiene contexto de estrategia inexistente', 409);
+    }
+    for (const item of [...mergedStrategy.values(), ...(backup.strategy ?? [])]) {
+      if (
+        item.kind === 'measurement' &&
+        item.unit &&
+        mergedStrategy.get(item.indicatorId!)?.unit !== item.unit
+      )
+        throw new DataError(
+          'La unidad de una medición no coincide con el indicador conservado',
+          409,
+        );
+    }
+    for (const record of [...merged.values(), ...backup.records])
+      for (const edge of strategic.recordStrategyEdges(record))
+        if (mergedStrategy.get(edge.id)?.kind !== edge.kind)
+          throw new DataError('El respaldo contiene visiones o claves inexistentes', 409);
     const signature = [...existing.values()]
       .map((record) => [record.id, record.updatedAt])
       .sort(([a], [b]) => a!.localeCompare(b!));
     return {
       version: 1,
       planning: planningSummary,
+      strategy: strategySummary,
       total: backup.records.length,
       newRecords: backup.records.length - duplicates - conflicts,
       duplicates,
@@ -1226,7 +1296,9 @@ export async function createRepository(client: Client, options: { migrate?: bool
               'Los registros existentes que difieren se conservarán sin cambios. Solo se incorporan IDs nuevos.',
             ]
           : [],
-      digest: hash(canonical({ backup, signature, currentSettings, currentPlanning })),
+      digest: hash(
+        canonical({ backup, signature, currentSettings, currentPlanning, currentStrategy }),
+      ),
     };
   }
 
@@ -1236,7 +1308,13 @@ export async function createRepository(client: Client, options: { migrate?: bool
       return await transaction(
         client,
         async (tx) =>
-          preview(backup, await allRecords(tx), await storedSettings(tx), await storedPlanning(tx)),
+          preview(
+            backup,
+            await allRecords(tx),
+            await storedSettings(tx),
+            await storedPlanning(tx),
+            await strategic.listStrategy(tx),
+          ),
         'read',
       );
     } catch (error) {
@@ -1253,7 +1331,14 @@ export async function createRepository(client: Client, options: { migrate?: bool
       return await transaction(client, async (tx) => {
         const existing = await allRecords(tx);
         const currentPlanning = await storedPlanning(tx);
-        const summary = preview(backup, existing, await storedSettings(tx), currentPlanning);
+        const currentStrategy = await strategic.listStrategy(tx);
+        const summary = preview(
+          backup,
+          existing,
+          await storedSettings(tx),
+          currentPlanning,
+          currentStrategy,
+        );
         if (!options?.digest || options.digest !== summary.digest)
           throw new DataError(
             'La base o el archivo cambiaron. Previsualiza nuevamente antes de importar.',
@@ -1262,6 +1347,23 @@ export async function createRepository(client: Client, options: { migrate?: bool
           );
         const incoming = backup.records.filter((record) => !existing.has(record.id));
         for (const record of incoming) await persistRecord(tx, record);
+        const oldStrategyIds = new Set(currentStrategy.map((item) => item.id));
+        const strategyIncoming = (backup.strategy ?? []).filter(
+          (item) => !oldStrategyIds.has(item.id),
+        );
+        for (const item of strategyIncoming) await strategic.persistStrategy(tx, item, false);
+        for (const item of strategyIncoming) await strategic.persistStrategyLinks(tx, item);
+        for (const change of backup.strategyHistory ?? [])
+          if (!oldStrategyIds.has(change.itemId))
+            await tx.execute({
+              sql: 'INSERT OR IGNORE INTO faro_strategy_history(id,item_id,occurred_at,data) VALUES (?,?,?,?)',
+              args: [change.id, change.itemId, change.occurredAt, JSON.stringify(change)],
+            });
+        const auditedStrategyIds = new Set(
+          (backup.strategyHistory ?? []).map((change) => change.itemId),
+        );
+        for (const item of strategyIncoming)
+          if (!auditedStrategyIds.has(item.id)) await strategic.auditStrategy(tx, null, item);
         for (const record of incoming) await persistLinks(tx, record);
         const newIds = new Set(incoming.map((record) => record.id));
         for (const entry of backup.history) {
@@ -1361,6 +1463,23 @@ export async function createRepository(client: Client, options: { migrate?: bool
       options?: { type?: EntityType; limit?: number; offset?: number },
     ) => withClientLock(client, () => getRelatedRecords(id, options)),
     getSnapshot,
+    getStrategy: (id: string) => withClientLock(client, () => strategic.getStrategy(client, id)),
+    saveStrategy: async (input: unknown, id?: string) => {
+      try {
+        return await transaction(client, (tx) => strategic.saveStrategy(tx, input, id));
+      } catch (error) {
+        exposeError(error);
+      }
+    },
+    deleteStrategy: async (id: string) => {
+      try {
+        return await transaction(client, (tx) => strategic.deleteStrategy(tx, id));
+      } catch (error) {
+        exposeError(error);
+      }
+    },
+    strategyHistory: (id: string, offset = 0) =>
+      withClientLock(client, () => strategic.strategyHistory(client, id, offset)),
     listPlanning: (week?: string) => withClientLock(client, () => listPlanning(week)),
     planningCommand,
     saveRecord,
@@ -1426,3 +1545,10 @@ export const clearLoginAttempts = async (key: string) =>
 export const listPlanning = async (week?: string) => (await getRepository()).listPlanning(week);
 export const planningCommand = async (value: unknown) =>
   (await getRepository()).planningCommand(value);
+
+export const saveStrategy = async (input: unknown, id?: string) =>
+  (await getRepository()).saveStrategy(input, id);
+export const getStrategy = async (id: string) => (await getRepository()).getStrategy(id);
+export const deleteStrategy = async (id: string) => (await getRepository()).deleteStrategy(id);
+export const strategyHistory = async (id: string, offset = 0) =>
+  (await getRepository()).strategyHistory(id, offset);

@@ -1,3 +1,4 @@
+import { goalMetric, projectMetric } from '../analytics';
 import type { FaroSnapshot } from '../../lib/types';
 import { metadataSnapshot, compactRecord } from '../data/views';
 import { addDays, dateKey, endOfDay, isActivity, recordDate } from '../analytics/dates';
@@ -76,6 +77,42 @@ export function planningView(snapshot: FaroSnapshot, items: PlanningItem[], week
     attention,
   }));
   return {
+    openWork: snapshot.records
+      .filter(
+        (r) =>
+          ['goals', 'projects'].includes(r.type) &&
+          ['pending', 'active', 'in_progress'].includes(r.status),
+      )
+      .sort(
+        (a, b) =>
+          (b.priority ?? 0) - (a.priority ?? 0) ||
+          (a.endDate ?? '9999').localeCompare(b.endDate ?? '9999') ||
+          a.name.localeCompare(b.name, 'es'),
+      )
+      .map((record) => ({
+        record: { ...compactRecord(record), purpose: record.purpose?.slice(0, 200) },
+        progress:
+          record.type === 'goals'
+            ? goalMetric(record, snapshot.records, new Date(snapshot.generatedAt)).progress
+            : projectMetric(record, snapshot.records).progress,
+        nextMilestone:
+          record.type === 'projects'
+            ? snapshot.records
+                .filter(
+                  (r) =>
+                    r.type === 'milestones' &&
+                    r.parentId === record.id &&
+                    ['pending', 'active', 'in_progress'].includes(r.status),
+                )
+                .sort(
+                  (a, b) =>
+                    (a.order ?? 0) - (b.order ?? 0) ||
+                    (a.endDate ?? '9999').localeCompare(b.endDate ?? '9999') ||
+                    a.name.localeCompare(b.name, 'es'),
+                )
+                .map((r) => ({ id: r.id, name: r.name }))[0]
+            : undefined,
+      })),
     weekStart,
     today: dateKey(snapshot.generatedAt, snapshot.settings.timezone),
     snapshot: metadataSnapshot(snapshot),

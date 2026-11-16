@@ -1806,3 +1806,127 @@ select[multiple] {
     min-height: 44px;
   }
 }
+
+/* Personal direction and its connections remain distinct from performed activity. */
+.north-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--muted);
+  max-width: 820px;
+}
+.north-intro svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.north-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.north-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.north-resource-grid > section {
+  padding: 20px;
+  min-width: 0;
+}
+.north-resource-grid .section-heading {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.north-indicator {
+  padding: 15px 0;
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.north-value {
+  font-size: 21px;
+  font-weight: 600;
+  margin: 8px 0;
+}
+.north-context-list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+.north-history {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.strategy-form-section {
+  grid-column: 1/-1;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.strategy-form-section > summary {
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 15px;
+}
+.strategy-connections {
+  grid-column: 1/-1;
+}
+.strategy-context {
+  gap: 9px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.strategy-context .inline {
+  flex-wrap: wrap;
+}
+.interest-area-heading {
+  grid-column: 1/-1;
+  margin: 14px 0 2px;
+}
+.interest-area-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+}
+.week-work-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+.week-open-work {
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.week-open-work > .field {
+  max-width: 420px;
+  margin-bottom: 18px;
+}
+.week-work-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.week-work-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.week-work-row .button {
+  flex-shrink: 0;
+}
+@media (max-width: 1050px) {
+  .north-resource-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 700px) {
+  .week-work-grid {
+    grid-template-columns: 1fr;
+  }
+  .week-work-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

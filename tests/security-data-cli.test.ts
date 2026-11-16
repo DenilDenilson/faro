@@ -89,6 +89,13 @@ describe('direct database backup CLI', () => {
         weekStart: '2026-11-09',
         name: 'Semana CLI',
       });
+      const vision = await sourceRepository.saveStrategy({
+        kind: 'vision',
+        name: 'Visión CLI',
+        description: 'Restaurar mi rumbo',
+        recordIds: [area.id],
+      });
+      await sourceRepository.saveRecord('interests', { visionIds: [vision.id] }, interest.id);
       const exported = JSON.parse((await command(sourceURL, ['export', file])).stdout) as {
         sha256: string;
         records: number;
@@ -127,6 +134,9 @@ describe('direct database backup CLI', () => {
       expect(restored).toMatchObject({ imported: 77, preferencesRestored: false });
       expect(await destination.listRecords()).toHaveLength(77);
       expect(await destination.listPlanning()).toHaveLength(2);
+      expect((await destination.exportData()).strategy).toHaveLength(1);
+      expect((await destination.exportData()).strategyHistory).toHaveLength(1);
+      expect((await destination.getRecord(interest.id))?.visionIds).toEqual([vision.id]);
       expect((await destination.exportData()).planningHistory).toHaveLength(2);
       expect((await destination.getSettings()).timezone).toBe('Europe/Madrid');
       const repeated = JSON.parse(

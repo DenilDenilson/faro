@@ -5,6 +5,8 @@ import AttentionRadar from '../components/AttentionRadar';
 import Analytics from '../components/Analytics';
 import Timeline from '../components/Timeline';
 import Alerts from '../components/Alerts';
+import North from '../components/North';
+import { northView } from '../domains/strategy';
 import { getSnapshot, listPlanning } from '../domains/data/repository';
 import { planningView } from '../domains/planning';
 import { monday } from '../domains/planning/validation';
@@ -19,6 +21,10 @@ import { buildTimeline } from '../domains/timeline';
 import { buildAlerts } from '../domains/notifications';
 import type { EntityType } from '../lib/types';
 const modules: Record<string, { title: string; subtitle: string; type?: EntityType }> = {
+  north: {
+    title: 'Mi norte.',
+    subtitle: 'Tu visión, los recursos que cuidas y las capacidades que quieres desarrollar.',
+  },
   areas: {
     title: 'Las dimensiones de tu vida.',
     subtitle:
@@ -138,6 +144,7 @@ const alerts =
 ---
 
 <AppLayout title={config.title} subtitle={config.subtitle} snapshot={snapshot}>
+  {module === 'north' && <North client:load initialView={northView(snapshot)} />}
   {config.type && entityPage && (
     <EntityManager
       client:load

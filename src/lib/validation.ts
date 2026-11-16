@@ -1,3 +1,5 @@
+import { RESOURCE_TYPES } from '../domains/strategy/types';
+import { strategyItemSchema, strategyHistorySchema } from '../domains/strategy/validation';
 import { planningItemSchema, planningHistorySchema } from '../domains/planning/validation';
 import { z } from 'zod';
 import {
@@ -37,6 +39,20 @@ export const recordInputSchema = z
       .enum(['active', 'paused', 'archived', 'pending', 'in_progress', 'completed', 'cancelled'])
       .default('active'),
     completedAt: instant.optional(),
+    visionIds: ids,
+    powerKeyIds: ids,
+    resourceTypes: z
+      .array(z.enum(RESOURCE_TYPES))
+      .max(3)
+      .transform((values) => [...new Set(values)])
+      .optional(),
+    purpose: optionalText(),
+    influenceActions: optionalText(),
+    externalFactors: optionalText(),
+    alternativePlan: optionalText(),
+    directionReview: optionalText(),
+    resourceReview: optionalText(),
+    capabilityReview: optionalText(),
     areaId: id.optional(),
     interestIds: ids,
     habitIds: ids,
@@ -215,6 +231,8 @@ const historySchema = z
   .strict();
 const backupSchema = z
   .object({
+    strategy: z.array(strategyItemSchema).max(250_000).default([]),
+    strategyHistory: z.array(strategyHistorySchema).max(1_000_000).default([]),
     planning: z.array(planningItemSchema).max(250_000).default([]),
     planningHistory: z.array(planningHistorySchema).max(1_000_000).default([]),
     format: z.literal('faro'),
@@ -237,6 +255,17 @@ export function parseBackup(value: unknown): FaroBackup {
         code: 'custom',
         path: ['planning'],
         message: 'El respaldo contiene IDs de planificación duplicados',
+      },
+    ]);
+  if (
+    new Set(parsed.strategy.map((i) => i.id)).size !== parsed.strategy.length ||
+    new Set(parsed.strategyHistory.map((i) => i.id)).size !== parsed.strategyHistory.length
+  )
+    throw new z.ZodError([
+      {
+        code: 'custom',
+        path: ['strategy'],
+        message: 'El respaldo contiene IDs de estrategia duplicados',
       },
     ]);
   const unique = new Set<string>();

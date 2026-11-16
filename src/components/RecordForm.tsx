@@ -19,6 +19,7 @@ import type {
 } from '../lib/types';
 import { apiRequest, formatMinutes, localDateTime, zonedInputToIso } from '../lib/client';
 import { Button } from './ui/button';
+import { StrategyConnections } from './StrategyConnections';
 import type { WeeklySummary } from '../domains/reviews';
 
 export const entityLabels: Record<EntityType, string> = {
@@ -96,7 +97,7 @@ function Field({
   );
 }
 
-function useRecordChoices(
+export function useRecordChoices(
   kind: EntityType,
   enabled: boolean,
   query: string,
@@ -538,6 +539,36 @@ export default function RecordForm({
             </Field>
           </>
         )}
+        {['goals', 'projects', 'habits', 'activities', 'learnings', 'reviews'].includes(type) && (
+          <details className="strategy-form-section" open={type === 'goals'}>
+            <summary>Mi norte y capacidades relacionadas</summary>
+            <StrategyConnections
+              snapshot={snapshot}
+              value={draft}
+              onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+            />
+            {['goals', 'projects'].includes(type) && (
+              <div className="form-grid">
+                {(
+                  [
+                    ['purpose', 'Por qué me importa'],
+                    ['influenceActions', 'Acciones bajo mi influencia'],
+                    ['externalFactors', 'Factores externos a tener en cuenta'],
+                    ['alternativePlan', 'Alternativa ante obstáculos'],
+                  ] as const
+                ).map(([field, label]) => (
+                  <Field key={field} label={label} wide>
+                    <textarea
+                      value={draft[field] ?? ''}
+                      maxLength={20000}
+                      onChange={(e) => update(field, e.target.value)}
+                    />
+                  </Field>
+                ))}
+              </div>
+            )}
+          </details>
+        )}
         {type === 'goals' && (
           <>
             {priority}
@@ -737,6 +768,21 @@ export default function RecordForm({
                 </>
               )}
             </section>
+            {(
+              [
+                ['directionReview', 'Rumbo: qué mantengo o ajusto de mis objetivos'],
+                ['resourceReview', 'Recursos: cuerpo, dinero y tiempo'],
+                ['capabilityReview', 'Capacidades: qué puse en práctica y qué necesito aprender'],
+              ] as const
+            ).map(([field, label]) => (
+              <Field label={label} wide key={field}>
+                <textarea
+                  maxLength={20000}
+                  value={draft[field] ?? ''}
+                  onChange={(e) => update(field, e.target.value)}
+                />
+              </Field>
+            ))}
             {longText('reflections', 'Reflexiones')}
             {longText('achievements', 'Logros')}
             {longText('difficulties', 'Dificultades')}

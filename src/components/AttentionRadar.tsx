@@ -1,3 +1,5 @@
+import { StrategyContext } from './StrategyConnections';
+import { statusLabels } from './RecordForm';
 import { useEffect, useState } from 'react';
 import {
   CalendarDays,
@@ -45,6 +47,8 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
   const [tab, setTab] = useState('week');
   const [area, setArea] = useState('');
   const [weekends, setWeekends] = useState(true);
+  const [workQuery, setWorkQuery] = useState('');
+  const [expandedWork, setExpandedWork] = useState(false);
   const [saving, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [timerReady, setTimerReady] = useState(false);
@@ -262,6 +266,100 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
               </button>
             </div>
           </div>
+          <section className="week-open-work" aria-label="Objetivos y proyectos pendientes">
+            <div className="section-heading">
+              <div>
+                <h2>Lo que tienes por atender</h2>
+                <p className="muted small">
+                  Incluye pendientes que todavía no has ubicado en esta semana.
+                </p>
+              </div>
+              <a className="text-link" href="/north">
+                Mi norte
+              </a>
+            </div>
+            <label className="field">
+              Buscar objetivo o proyecto
+              <input
+                type="search"
+                value={workQuery}
+                onChange={(e) => setWorkQuery(e.target.value)}
+                placeholder="¿En qué quieres avanzar?"
+              />
+            </label>
+            <div className="week-work-grid">
+              {(['goals', 'projects'] as const).map((type) => {
+                const entries = view.openWork.filter(
+                  (row) =>
+                    row.record.type === type &&
+                    inArea(row.record) &&
+                    row.record.name
+                      .toLocaleLowerCase('es')
+                      .includes(workQuery.toLocaleLowerCase('es')),
+                );
+                return (
+                  <section
+                    key={type}
+                    aria-label={type === 'goals' ? 'Objetivos pendientes' : 'Proyectos pendientes'}
+                  >
+                    <div className="section-heading">
+                      <h3>{type === 'goals' ? 'Objetivos' : 'Proyectos'}</h3>
+                      <span className="badge">{entries.length}</span>
+                    </div>
+                    {entries.length ? (
+                      entries
+                        .slice(0, expandedWork ? entries.length : 4)
+                        .map(({ record, progress, nextMilestone }) => (
+                          <article className="week-work-row" key={record.id}>
+                            <div>
+                              <a className="text-link" href={`/${type}?id=${record.id}`}>
+                                {record.name}
+                              </a>
+                              <p className="muted small">
+                                {statusLabels[record.status]}
+                                {record.priority === 3 ? ' · Prioridad alta' : ''}
+                                {record.endDate ? ` · ${formatDate(record.endDate, timezone)}` : ''}
+                                {progress !== null ? ` · ${Math.round(progress * 100)} %` : ''}
+                              </p>
+                              {nextMilestone && (
+                                <p className="muted small">Próximo hito: {nextMilestone.name}</p>
+                              )}
+                            </div>
+                            <button
+                              className="button"
+                              disabled={busy || !activeInterests.length}
+                              aria-label={`Planificar acción para ${record.name}`}
+                              onClick={() =>
+                                create(undefined, {
+                                  name: nextMilestone
+                                    ? `Trabajar en ${nextMilestone.name}`
+                                    : `Avanzar en ${record.name}`,
+                                  interestIds: record.interestIds ?? [],
+                                  goalIds: type === 'goals' ? [record.id] : record.goalIds,
+                                  projectIds: type === 'projects' ? [record.id] : record.projectIds,
+                                })
+                              }
+                            >
+                              Planificar
+                            </button>
+                          </article>
+                        ))
+                    ) : (
+                      <p className="muted small">
+                        No hay {type === 'goals' ? 'objetivos' : 'proyectos'} pendientes con esta
+                        selección.
+                      </p>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+            {view.openWork.length > 4 && (
+              <button className="text-link" onClick={() => setExpandedWork(!expandedWork)}>
+                {expandedWork ? 'Mostrar menos' : 'Ver todos los pendientes'}
+              </button>
+            )}
+          </section>
           {!activeInterests.length && (
             <div className="callout">
               Para planificar, crea o reactiva un <a href="/interests">interés</a>. Tus intereses en
@@ -793,6 +891,22 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                   ? `${formatMinutes(selected.estimatedMinutes)} estimados`
                   : 'Sin duración estimada'}
               </p>
+              {snapshot.records
+                .filter((r) =>
+                  [
+                    ...(selected.goalIds ?? []),
+                    ...(selected.projectIds ?? []),
+                    ...(selected.habitIds ?? []),
+                  ].includes(r.id),
+                )
+                .map((r) => (
+                  <div key={r.id}>
+                    <a className="text-link" href={`/${r.type}?id=${r.id}`}>
+                      {r.name}
+                    </a>
+                    <StrategyContext record={r} snapshot={snapshot} />
+                  </div>
+                ))}
               {selected.notes && <p className="preserve-lines">{selected.notes}</p>}
               <div className="button-row">
                 <button

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -583,7 +583,7 @@ export default function EntityManager({
       </div>
       {visible.length ? (
         <div className="record-grid">
-          {visible.map((record) => {
+          {visible.map((record, index) => {
             const summary = summaries[record.id];
             const related = relatedRecords(record, snapshot.records);
             const sessions = related.filter(
@@ -619,211 +619,228 @@ export default function EntityManager({
                   )
                 : undefined);
             return (
-              <article
-                className="card record-card"
-                key={record.id}
-                style={
-                  record.type === 'areas'
-                    ? { borderTop: `3px solid ${record.color ?? 'var(--accent)'}` }
-                    : undefined
-                }
-              >
-                <div
-                  className="inline"
-                  style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}
-                >
-                  <button
-                    type="button"
-                    className="record-title text-link"
-                    style={{ textAlign: 'left', fontWeight: 600, fontSize: 17, lineHeight: 1.4 }}
-                    onClick={() => openRecord(record)}
-                  >
-                    {record.name}
-                  </button>
-                  <span className={`badge status-${record.status}`}>
-                    {statusLabels[record.status]}
-                  </span>
-                </div>
-                {record.description && (
-                  <p
-                    className="muted"
-                    style={{
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      fontSize: 14,
-                    }}
-                  >
-                    {record.description}
-                  </p>
-                )}
-                <div
-                  className="record-meta"
-                  style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12 }}
-                >
-                  {record.areaId && (
-                    <span className="inline">
-                      <Layers3 size={13} />
-                      {areas.find((item) => item.id === record.areaId)?.name}
-                    </span>
-                  )}
-                  {record.type === 'activities' && (
-                    <>
-                      <span>{formatDate(record.occurredAt, timezone, true)}</span>
-                      <span className="inline">
-                        <Clock3 size={13} />
-                        {formatMinutes(record.durationMinutes ?? 0)}
-                      </span>
-                    </>
-                  )}
-                  {record.type === 'interests' && (
-                    <>
-                      <span>Cada {record.frequencyDays} días</span>
-                      <span>
-                        {(summary?.sessionCount ?? sessions.length)
-                          ? formatMinutes(
-                              summary?.minutes ??
-                                allocatedMinutesForInterest(
-                                  record.id,
-                                  snapshot.records,
-                                  new Date(snapshot.generatedAt),
-                                ),
-                            )
-                          : 'Sin sesiones'}
-                      </span>
-                    </>
-                  )}
-                  {record.type === 'areas' && (
-                    <>
-                      <span>
-                        {related.filter((item) => item.type === 'interests').length} intereses
-                      </span>
-                      <span>
-                        {(summary?.sessionCount ?? sessions.length)
-                          ? `${summary?.sessionCount ?? sessions.length} sesiones · ${formatMinutes(summary?.minutes ?? allocatedMinutesForArea(record.id, snapshot.records, new Date(snapshot.generatedAt), snapshot.history))}`
-                          : 'Sin actividad todavía'}
-                      </span>
-                    </>
-                  )}
-                  {goal && (
-                    <span>
-                      {goal.targetValue !== null
-                        ? `${goal.currentValue === null ? 'Sin medición' : goal.currentValue} / ${goal.targetValue} ${goal.unit}`
-                        : 'Sin meta numérica'}
-                    </span>
-                  )}
-                  {project && (
-                    <span>
-                      {project.totalMilestones
-                        ? `${project.completedMilestones} / ${project.totalMilestones} hitos`
-                        : 'Sin hitos todavía'}
-                    </span>
-                  )}
-                  {record.type === 'seasons' && (
-                    <span>
-                      {formatDate(record.startDate, timezone)} —{' '}
-                      {formatDate(record.endDate, timezone)}
-                    </span>
-                  )}
-                  {record.type === 'reviews' && (
-                    <span>Semana del {formatDate(record.weekStart, timezone)}</span>
-                  )}
-                  {record.type === 'learnings' && (
-                    <span className="inline">
-                      <BookOpen size={13} />
-                      {formatDate(record.occurredAt ?? record.createdAt, timezone)}
-                    </span>
-                  )}
-                </div>
-                {attention && <small className="muted">{attention.label}</small>}
-                {habit && (
-                  <div className="stack" style={{ gap: 6 }}>
-                    <div className="inline muted" style={{ fontSize: 13 }}>
-                      {habit.paused ? (
-                        'En pausa'
-                      ) : habit.completed ? (
-                        <>
-                          <CheckCircle2 size={15} />
-                          Período cumplido
-                        </>
-                      ) : (
-                        `${habit.sessions}${habit.targetCount ? ` / ${habit.targetCount}` : ''} sesiones${habit.targetMinutes ? ` · ${Math.round(habit.minutes)} / ${habit.targetMinutes} min` : ''}`
-                      )}
+              <Fragment key={record.id}>
+                {type === 'interests' &&
+                  (index === 0 || visible[index - 1]?.areaId !== record.areaId) && (
+                    <div className="interest-area-heading">
+                      <h2>
+                        <span
+                          className="color-dot"
+                          style={{
+                            background:
+                              areas.find((a) => a.id === record.areaId)?.color ?? 'var(--accent)',
+                          }}
+                        />
+                        {areas.find((a) => a.id === record.areaId)?.name ?? 'Sin área'}
+                      </h2>
                     </div>
-                    {habit.progress !== null && !habit.paused && (
-                      <progress
-                        value={Math.min(habit.progress, 1)}
-                        max={1}
-                        style={{ width: '100%', accentColor: 'var(--accent)' }}
-                        aria-label={`Cumplimiento de ${record.name}`}
-                      />
-                    )}
-                  </div>
-                )}
-                {record.tags?.length ? (
-                  <div className="inline" style={{ flexWrap: 'wrap' }}>
-                    {record.tags.slice(0, 4).map((tag) => (
-                      <span className="badge" key={tag}>
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                <div
-                  className="inline"
-                  style={{ justifyContent: 'space-between', marginTop: 'auto', paddingTop: 8 }}
+                  )}
+                <article
+                  className="card record-card"
+                  key={record.id}
+                  style={
+                    record.type === 'areas'
+                      ? { borderTop: `3px solid ${record.color ?? 'var(--accent)'}` }
+                      : undefined
+                  }
                 >
-                  <Button variant="ghost" size="sm" onClick={() => openRecord(record)}>
-                    Ver detalle
-                    <ArrowUpRight size={14} />
-                  </Button>
-                  <div className="inline">
-                    {type === 'areas' && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={reordering}
-                          aria-label={`Subir ${record.name}`}
-                          onClick={() => void moveArea(record, -1)}
-                        >
-                          <ArrowUp size={14} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={reordering}
-                          aria-label={`Bajar ${record.name}`}
-                          onClick={() => void moveArea(record, 1)}
-                        >
-                          <ArrowDown size={14} />
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Editar ${record.name}`}
-                      disabled={editLoading}
-                      onClick={() => void beginEdit(record)}
+                  <div
+                    className="inline"
+                    style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}
+                  >
+                    <button
+                      type="button"
+                      className="record-title text-link"
+                      style={{ textAlign: 'left', fontWeight: 600, fontSize: 17, lineHeight: 1.4 }}
+                      onClick={() => openRecord(record)}
                     >
-                      <Pencil size={15} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Eliminar ${record.name}`}
-                      onClick={() => {
-                        setError('');
-                        setDeleting(record);
+                      {record.name}
+                    </button>
+                    <span className={`badge status-${record.status}`}>
+                      {statusLabels[record.status]}
+                    </span>
+                  </div>
+                  {record.description && (
+                    <p
+                      className="muted"
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        fontSize: 14,
                       }}
                     >
-                      <Trash2 size={15} />
-                    </Button>
+                      {record.description}
+                    </p>
+                  )}
+                  <div
+                    className="record-meta"
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12 }}
+                  >
+                    {record.areaId && (
+                      <span className="inline">
+                        <Layers3 size={13} />
+                        {areas.find((item) => item.id === record.areaId)?.name}
+                      </span>
+                    )}
+                    {record.type === 'activities' && (
+                      <>
+                        <span>{formatDate(record.occurredAt, timezone, true)}</span>
+                        <span className="inline">
+                          <Clock3 size={13} />
+                          {formatMinutes(record.durationMinutes ?? 0)}
+                        </span>
+                      </>
+                    )}
+                    {record.type === 'interests' && (
+                      <>
+                        <span>Cada {record.frequencyDays} días</span>
+                        <span>
+                          {(summary?.sessionCount ?? sessions.length)
+                            ? formatMinutes(
+                                summary?.minutes ??
+                                  allocatedMinutesForInterest(
+                                    record.id,
+                                    snapshot.records,
+                                    new Date(snapshot.generatedAt),
+                                  ),
+                              )
+                            : 'Sin sesiones'}
+                        </span>
+                      </>
+                    )}
+                    {record.type === 'areas' && (
+                      <>
+                        <span>
+                          {related.filter((item) => item.type === 'interests').length} intereses
+                        </span>
+                        <span>
+                          {(summary?.sessionCount ?? sessions.length)
+                            ? `${summary?.sessionCount ?? sessions.length} sesiones · ${formatMinutes(summary?.minutes ?? allocatedMinutesForArea(record.id, snapshot.records, new Date(snapshot.generatedAt), snapshot.history))}`
+                            : 'Sin actividad todavía'}
+                        </span>
+                      </>
+                    )}
+                    {goal && (
+                      <span>
+                        {goal.targetValue !== null
+                          ? `${goal.currentValue === null ? 'Sin medición' : goal.currentValue} / ${goal.targetValue} ${goal.unit}`
+                          : 'Sin meta numérica'}
+                      </span>
+                    )}
+                    {project && (
+                      <span>
+                        {project.totalMilestones
+                          ? `${project.completedMilestones} / ${project.totalMilestones} hitos`
+                          : 'Sin hitos todavía'}
+                      </span>
+                    )}
+                    {record.type === 'seasons' && (
+                      <span>
+                        {formatDate(record.startDate, timezone)} —{' '}
+                        {formatDate(record.endDate, timezone)}
+                      </span>
+                    )}
+                    {record.type === 'reviews' && (
+                      <span>Semana del {formatDate(record.weekStart, timezone)}</span>
+                    )}
+                    {record.type === 'learnings' && (
+                      <span className="inline">
+                        <BookOpen size={13} />
+                        {formatDate(record.occurredAt ?? record.createdAt, timezone)}
+                      </span>
+                    )}
                   </div>
-                </div>
-              </article>
+                  {attention && <small className="muted">{attention.label}</small>}
+                  {habit && (
+                    <div className="stack" style={{ gap: 6 }}>
+                      <div className="inline muted" style={{ fontSize: 13 }}>
+                        {habit.paused ? (
+                          'En pausa'
+                        ) : habit.completed ? (
+                          <>
+                            <CheckCircle2 size={15} />
+                            Período cumplido
+                          </>
+                        ) : (
+                          `${habit.sessions}${habit.targetCount ? ` / ${habit.targetCount}` : ''} sesiones${habit.targetMinutes ? ` · ${Math.round(habit.minutes)} / ${habit.targetMinutes} min` : ''}`
+                        )}
+                      </div>
+                      {habit.progress !== null && !habit.paused && (
+                        <progress
+                          value={Math.min(habit.progress, 1)}
+                          max={1}
+                          style={{ width: '100%', accentColor: 'var(--accent)' }}
+                          aria-label={`Cumplimiento de ${record.name}`}
+                        />
+                      )}
+                    </div>
+                  )}
+                  {record.tags?.length ? (
+                    <div className="inline" style={{ flexWrap: 'wrap' }}>
+                      {record.tags.slice(0, 4).map((tag) => (
+                        <span className="badge" key={tag}>
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div
+                    className="inline"
+                    style={{ justifyContent: 'space-between', marginTop: 'auto', paddingTop: 8 }}
+                  >
+                    <Button variant="ghost" size="sm" onClick={() => openRecord(record)}>
+                      Ver detalle
+                      <ArrowUpRight size={14} />
+                    </Button>
+                    <div className="inline">
+                      {type === 'areas' && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={reordering}
+                            aria-label={`Subir ${record.name}`}
+                            onClick={() => void moveArea(record, -1)}
+                          >
+                            <ArrowUp size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={reordering}
+                            aria-label={`Bajar ${record.name}`}
+                            onClick={() => void moveArea(record, 1)}
+                          >
+                            <ArrowDown size={14} />
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Editar ${record.name}`}
+                        disabled={editLoading}
+                        onClick={() => void beginEdit(record)}
+                      >
+                        <Pencil size={15} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Eliminar ${record.name}`}
+                        onClick={() => {
+                          setError('');
+                          setDeleting(record);
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </Button>
+                    </div>
+                  </div>
+                </article>
+              </Fragment>
             );
           })}
         </div>

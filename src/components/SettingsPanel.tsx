@@ -92,7 +92,7 @@ export default function SettingsPanel({ snapshot }: { snapshot: FaroSnapshot }) 
       !backup ||
       !preview ||
       !window.confirm(
-        `¿Importar ${preview.newRecords} registros y ${preview.planning?.newRecords ?? 0} planes o semanas tipo nuevos? Los existentes se conservarán.`,
+        `¿Importar ${preview.newRecords} registros y ${preview.planning?.newRecords ?? 0} planes y ${preview.strategy?.newRecords ?? 0} registros de Mi norte nuevos? Los existentes se conservarán.`,
       )
     )
       return;
@@ -309,6 +309,13 @@ export default function SettingsPanel({ snapshot }: { snapshot: FaroSnapshot }) 
                   </div>
                 )}
               </dl>
+              {preview.strategy && (
+                <p className="muted small">
+                  Mi norte: {preview.strategy.total} registros · {preview.strategy.newRecords}{' '}
+                  nuevos · {preview.strategy.duplicates} duplicados · {preview.strategy.conflicts}{' '}
+                  conflictos conservados.
+                </p>
+              )}
               {preview.warnings.map((warning, i) => (
                 <p className="muted" key={i}>
                   {warning}

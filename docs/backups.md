@@ -4,7 +4,7 @@ Turso centraliza los datos entre dispositivos. Una base remota por sí sola no p
 
 ## Qué contiene un respaldo
 
-El JSON de FARO tiene `format: "faro"` y `version: 1`. Incluye todos los registros, sus IDs y relaciones, preferencias y el historial de cambios, incluidos registros eliminados del historial. También incluye planes y semanas tipo en `planning`, con su historial en `planningHistory`. Estos campos son opcionales para admitir respaldos anteriores. La previsualización muestra sus nuevos elementos, duplicados y conflictos por separado. Las relaciones actuales se reconstruyen y validan al restaurar. La exportación usa una lectura transaccional consistente.
+El JSON de FARO tiene `format: "faro"` y `version: 1`. Incluye todos los registros, sus IDs y relaciones, preferencias y el historial de cambios, incluidos registros eliminados del historial. También incluye planes y semanas tipo en `planning`, con su historial en `planningHistory`. También contiene visión, claves, indicadores, mediciones y revisiones de rumbo en `strategy`, con versiones en `strategyHistory`. Estos campos son opcionales para admitir respaldos anteriores. La previsualización muestra sus nuevos elementos, duplicados y conflictos por separado. Las relaciones actuales se reconstruyen y validan al restaurar. La exportación usa una lectura transaccional consistente.
 
 El archivo no contiene la contraseña de acceso, la clave de sesión ni el token de Turso. Tampoco contiene datos de aplicaciones que compartan la misma base. Aun así, contiene información personal sensible: guárdalo cifrado y con acceso privado. Los archivos creados por la CLI tienen permisos `0600` en sistemas que admitan permisos POSIX.
 

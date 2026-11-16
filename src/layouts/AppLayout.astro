@@ -41,6 +41,7 @@ const groups = [
   {
     label: 'Mi vida',
     items: [
+      { href: '/north', label: 'Mi norte', icon: Flag },
       { href: '/attention', label: 'Radar de atención', icon: Compass },
       { href: '/areas', label: 'Áreas de vida', icon: Layers3 },
       { href: '/interests', label: 'Intereses', icon: Sprout },
@@ -70,6 +71,7 @@ const today = new Intl.DateTimeFormat('es-PE', {
 const theme = snapshot.settings.theme;
 const timerSnapshot = {
   ...snapshot,
+  strategy: [],
   records: snapshot.records
     .filter((record) => ['interests', 'habits', 'projects', 'goals'].includes(record.type))
     .map((record) => ({

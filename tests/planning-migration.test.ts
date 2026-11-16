@@ -3,6 +3,7 @@ import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { mkdir, mkdtemp, readFile, writeFile, copyFile, rm } from 'node:fs/promises';
+import { SCHEMA_VERSION } from '../src/db/migrations';
 import { createRepository } from '../src/domains/data/repository';
 it('actualiza una base anterior con datos sin reconstruir registros ni modificar tablas ajenas', async () => {
   await mkdir('work', { recursive: true });
@@ -47,7 +48,7 @@ it('actualiza una base anterior con datos sin reconstruir registros ni modificar
     expect(await repo.listPlanning()).toEqual([]);
     expect(
       (await client.execute('SELECT count(*) AS version FROM faro_migrations')).rows[0]?.version,
-    ).toBe(2);
+    ).toBe(SCHEMA_VERSION);
     expect((await client.execute('PRAGMA foreign_key_check')).rows).toEqual([]);
   } finally {
     client.close();

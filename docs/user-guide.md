@@ -15,6 +15,21 @@ La primera vez encontrarás un espacio vacío. Los datos de ejemplo de las prueb
 
 En computadora, la navegación está a la izquierda. En celular, abre el menú de la barra superior. Los formularios y detalles se abren en cuadros de diálogo; puedes recorrer sus controles con el teclado y cerrarlos con Escape.
 
+## Mi norte: visión, fuentes y claves de poder
+
+**Mi norte** reúne tu dirección personal y las capacidades y recursos que quieres cuidar. Tiene cuatro vistas:
+
+- **Visión:** escribe cómo quieres vivir, tus motivos, valores, límites y un horizonte opcional. Relaciona áreas y objetivos existentes y guarda una fecha para volver a revisarla. Puedes editar o archivar una visión y consultar sus versiones anteriores en **Detalle e historial**.
+- **Fuentes de poder:** cuerpo, dinero y tiempo. Crea tus propios indicadores, define su unidad y, si quieres, referencias mínimas o máximas. Registra observaciones con fecha y valor. Sin observaciones se muestra **Sin mediciones**; cero se conserva como un valor real. Las referencias son las que tú defines. Las observaciones no cambian automáticamente el avance de objetivos. Un indicador con mediciones conserva su fuente y su unidad; para otra unidad crea otro indicador. **Ver mediciones** permite recorrer el historial y corregir una observación.
+- **Claves de poder:** conocimientos y capacidades que quieres poner en práctica. Describe qué quieres saber hacer y para qué, relaciona visiones, objetivos, hábitos, actividades o aprendizajes y guarda ejemplos. Las etapas son **Por explorar**, **En práctica** y **Aplicada en situaciones registradas**. Para marcar una clave como aplicada, añade un ejemplo escrito o relaciona una actividad o aprendizaje real. La etapa la eliges tú; las horas acumuladas no la cambian automáticamente. Una aplicación ya documentada conserva su declaración e historial aunque posteriormente retires un vínculo; puedes revisar su etapa expresamente.
+- **Revisión de rumbo:** revisiones mensuales, trimestrales o personalizadas sobre tu visión, recursos, capacidades y decisiones. Puedes relacionar los registros que revisas y acceder desde el detalle al Radar de esa semana y a la preparación de la siguiente. Las revisiones semanales siguen disponibles en su propia sección.
+
+En los formularios de objetivos, proyectos, hábitos, actividades, aprendizajes y revisiones encontrarás **Mi norte y capacidades relacionadas**. En objetivos y proyectos también puedes escribir por qué te importan, las acciones bajo tu influencia, factores externos y alternativas ante obstáculos. Los criterios de éxito y mediciones de los objetivos siguen siendo los existentes; objetivo y meta comparten una estructura.
+
+Una actividad nueva conserva las visiones y claves relacionadas con sus objetivos, proyectos o hábitos. Esto registra el contexto de la práctica; no certifica el dominio de una capacidad. Un aprendizaje puede vincularse directamente con una clave y consultarse desde su detalle en Mi norte. Archiva los registros vinculados que quieras dejar de usar para conservar sus relaciones e historial.
+
+Todos estos datos, relaciones y versiones se guardan en Turso y forman parte del respaldo web y de la CLI. Los respaldos anteriores siguen siendo válidos.
+
 ## Hoy
 
 **Hoy** resume el tiempo y las sesiones del día, el tiempo de la semana iniciada el lunes, las áreas cultivadas y los intereses atendidos. También muestra las actividades del día, hábitos pendientes, proyectos en marcha, objetivos prioritarios e intereses que conviene retomar.
@@ -29,7 +44,7 @@ Un **interés** tiene prioridad y frecuencia deseada en días. No necesita un h�
 
 La frecuencia del interés es un intervalo de atención para el radar. Por ejemplo, «Entrenamiento de fuerza cada cuatro días» indica cuándo conviene retomarlo. La meta «Ir al gimnasio tres veces por semana» pertenece a un hábito vinculado a ese interés: FARO comprobará su cumplimiento contando las actividades de entrenamiento que registres.
 
-Puedes buscar, filtrar y editar los registros. **Eliminar** pide confirmación. Cuando un registro esté relacionado con otros, FARO protege la integridad de la información; archivar suele ser una buena alternativa para conservar contexto histórico.
+La vista principal de Intereses agrupa los registros por área, con encabezados visibles. La agrupación se aplica antes de paginar; el orden elegido se conserva dentro de cada área. Puedes buscar, filtrar y editar los registros. **Eliminar** pide confirmación. Cuando un registro esté relacionado con otros, FARO protege la integridad de la información; archivar suele ser una buena alternativa para conservar contexto histórico.
 
 ## Objetivos y avances
 
@@ -66,6 +81,8 @@ Una sesión vinculada a varios conceptos conserva una sola duración en los tota
 ## Radar y planificación semanal
 
 El radar abre en **Mi semana**, de lunes a domingo, según tu zona horaria. Navega a otras semanas, filtra por área y muestra u oculta el fin de semana. Las sesiones realizadas y las prácticas previstas tienen estilos distintos. La pestaña **Estado de intereses** conserva el radar por frecuencia, prioridad y temporada, incluidas las pausas.
+
+Antes del calendario, **Lo que tienes por atender** reúne objetivos y proyectos pendientes o en curso, aunque no tengan prácticas programadas. Puedes buscarlos, abrir su detalle y usar **Planificar** para elegir una acción vinculada. Se muestra el próximo hito cuando existe; planificarlo no lo marca como completado. La selección de área también se aplica a estos pendientes. Al abrir una práctica se puede consultar el contexto de sus objetivos, proyectos y hábitos y sus conexiones con Mi norte.
 
 1. Pulsa **Nueva práctica** o **Añadir** dentro de un día. Describe algo concreto, por ejemplo «Practicar cambios entre acordes», selecciona un interés y, si corresponde, un hábito, proyecto u objetivo.
 2. El día y los minutos estimados son opcionales. Las prácticas sin día aparecen en **Por ubicar**. Puedes añadir notas con el siguiente paso o el material que quieres trabajar.

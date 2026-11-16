@@ -54,6 +54,18 @@ reutilizar semanas ni trasladar pendientes sin selección del usuario. Respetar 
 pausas de hábitos. Incluir planificación e historial en exportaciones web y CLI; importar
 sin sobrescribir conflictos y validar relaciones antes de persistir.
 
+## Estrategia personal
+
+Visiones, claves, indicadores, observaciones y revisiones de rumbo usan `faro_strategy`,
+con relaciones e historial propios. Las fuentes cuerpo/dinero/tiempo son categorías;
+no crear observaciones ni indicadores personales de ejemplo. Una observación de valor
+cero es real; sin mediciones el valor es desconocido. Conservar unidad y fuente de un
+indicador con mediciones. Las etapas de claves son explícitas y nunca se calculan a
+partir de horas. Preservar relaciones con objetivos, prácticas y aprendizajes, exportar
+estrategia e historial en web y CLI e importar el grafo en una transacción sin sobrescribir
+conflictos. La agrupación de intereses se ordena por área antes de paginar. El Radar
+incluye objetivos y proyectos abiertos aunque todavía no tengan planes semanales.
+
 ## Contrato de edición
 
 Las actualizaciones conservan campos omitidos. Para borrar un campo opcional se envía

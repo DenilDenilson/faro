@@ -179,7 +179,10 @@ test('el radar guarda intenciones, permite moverlas y registra una sesión real 
   await page.getByRole('button', { name: 'Cerrar semana', exact: true }).click();
   await expect(
     page.getByRole('dialog').getByRole('link', { name: 'Abrir revisión de esta semana' }),
-  ).toHaveAttribute('href', `/reviews?week=${addDays(week, 7)}`);
+  ).toHaveAttribute(
+    'href',
+    next.reviewId ? `/reviews?id=${next.reviewId}` : `/reviews?week=${addDays(week, 7)}`,
+  );
   await page.getByRole('dialog').getByRole('button', { name: 'Cerrar diálogo' }).click();
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(

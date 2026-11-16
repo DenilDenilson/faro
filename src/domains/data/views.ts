@@ -1,3 +1,4 @@
+import { strategyMetadata } from '../strategy';
 import type { EntityType, FaroRecord, FaroSnapshot, HistoryEntry } from '../../lib/types';
 import {
   allocatedMinutesForArea,
@@ -68,6 +69,13 @@ export interface FaroViewSnapshot extends FaroSnapshot {
 }
 
 const longFields = [
+  'purpose',
+  'influenceActions',
+  'externalFactors',
+  'alternativePlan',
+  'directionReview',
+  'resourceReview',
+  'capabilityReview',
   'notes',
   'outcomes',
   'reflections',
@@ -117,6 +125,7 @@ export function metadataSnapshot(
   const explicit = new Set(options.includeIds ?? []);
   return {
     ...snapshot,
+    strategy: strategyMetadata(snapshot.strategy ?? []),
     records: snapshot.records
       .filter(
         (record) =>
@@ -130,6 +139,10 @@ export function metadataSnapshot(
         status: record.status,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
+        ...(record.visionIds ? { visionIds: record.visionIds } : {}),
+        ...(record.powerKeyIds ? { powerKeyIds: record.powerKeyIds } : {}),
+        ...(record.resourceTypes ? { resourceTypes: record.resourceTypes } : {}),
+        ...(record.purpose ? { purpose: record.purpose.slice(0, 200) } : {}),
         ...(record.areaId ? { areaId: record.areaId } : {}),
         ...(record.interestIds ? { interestIds: record.interestIds } : {}),
         ...(record.habitIds ? { habitIds: record.habitIds } : {}),
@@ -238,8 +251,17 @@ export function getEntityPage(
         dateKey(record.occurredAt ?? record.createdAt, snapshot.settings.timezone);
       return (!filters.from || day >= filters.from) && (!filters.to || day <= filters.to);
     })
-    .sort((a, b) =>
-      sort === 'name'
+    .sort((a, b) => {
+      if (type === 'interests') {
+        const areaA = indexed.get(a.areaId ?? '');
+        const areaB = indexed.get(b.areaId ?? '');
+        const group =
+          (areaA?.order ?? 1000000) - (areaB?.order ?? 1000000) ||
+          (areaA?.name ?? 'Sin área').localeCompare(areaB?.name ?? 'Sin área', 'es') ||
+          (a.areaId ?? '').localeCompare(b.areaId ?? '');
+        if (group) return group;
+      }
+      return sort === 'name'
         ? a.name.localeCompare(b.name, 'es')
         : sort === 'order'
           ? (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name, 'es')
@@ -247,8 +269,8 @@ export function getEntityPage(
             ? (b.priority ?? 0) - (a.priority ?? 0) || a.name.localeCompare(b.name, 'es')
             : (b.occurredAt ?? b.weekStart ?? b.startDate ?? b.createdAt).localeCompare(
                 a.occurredAt ?? a.weekStart ?? a.startDate ?? a.createdAt,
-              ),
-    );
+              );
+    });
   const limit = Math.max(1, pageNumber(filters.limit, 12, 100));
   const offset = pageNumber(filters.offset, 0);
   return {
