@@ -1660,6 +1660,33 @@ select[multiple] {
   display: grid;
   gap: 9px;
 }
+.week-task {
+  position: relative;
+  min-width: 0;
+}
+.week-task .week-entry {
+  width: 100%;
+  padding-right: 32px;
+}
+.week-check {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--accent);
+}
+.week-check:hover {
+  background: var(--accent-soft);
+}
+.task-completed strong {
+  text-decoration: line-through;
+}
 .week-entry {
   display: grid;
   gap: 6px;

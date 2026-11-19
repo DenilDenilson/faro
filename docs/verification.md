@@ -1,14 +1,14 @@
 # Verificación de entrega
 
-Validación de Mi norte y del planificador semanal, con semanas y fechas en la zona configurada, Node 24 y pnpm 11.25.0.
+Validación de Mi norte y del planificador semanal con tareas independientes, con semanas y fechas en la zona configurada, Node 24 y pnpm 11.25.0.
 
 | Comprobación         | Resultado                                                                   |
 | -------------------- | --------------------------------------------------------------------------- |
 | `pnpm check`         | 0 errores, 0 advertencias, 0 sugerencias                                    |
 | `pnpm lint`          | Correcto                                                                    |
 | `pnpm format:check`  | Correcto                                                                    |
-| `pnpm test`          | 114 pruebas aprobadas en 15 archivos                                        |
-| `pnpm test:e2e`      | 14 escenarios aprobados en Chromium                                         |
+| `pnpm test`          | 118 pruebas aprobadas en 15 archivos                                        |
+| `pnpm test:e2e`      | 15 escenarios aprobados en Chromium                                         |
 | `pnpm build`         | Build SSR y funciones Vercel generados correctamente                        |
 | `pnpm peers check`   | Sin conflictos de dependencias pares                                        |
 | Drizzle Kit          | Tres migraciones coherentes; actualizaciones desde versiones 1 y 2 probadas |
@@ -19,7 +19,7 @@ edición mediante formularios; actividades retrospectivas con zona horaria; conf
 de eliminaciones; navegación de los módulos; relaciones e historial; exportación y
 restauración sin duplicados; preferencias compartidas entre dos contextos de navegador;
 pantallas móviles; filtros históricos, calendario y alertas; cronómetro con pausa,
-recarga y guardado único. El radar semanal verifica creación, arrastre, edición y limpieza de estimaciones, registro manual, semanas tipo, navegación desde revisiones conservando notas, cronómetro vinculado y presentación móvil. Los controles esperan a completar su hidratación antes de
+recarga y guardado único. El radar semanal verifica creación, arrastre, edición y limpieza de estimaciones, registro manual, semanas tipo, navegación desde revisiones conservando notas, cronómetro vinculado y presentación móvil. Las tareas independientes se crean sin vínculos, se ordenan por hora opcional, se completan y reabren, mantienen su estado al recargar y permiten limpiar la hora y el día sin crear sesiones. El recorrido de arrastre distingue la tarjeta de su nueva casilla de completado mediante sus nombres accesibles. Los controles esperan a completar su hidratación antes de
 aceptar interacciones. Los recorridos de Mi norte verifican creación y revisión de visiones,
 conexiones con objetivos y aprendizajes, etapas de claves, mediciones de valor cero,
 limpieza de referencias, revisiones de rumbo, agrupación de intereses y planificación de
@@ -37,6 +37,11 @@ tardó aproximadamente 3,4 segundos. No constituye una garantía de rendimiento 
 ni mide la latencia de una base Turso remota.
 
 ## Migración y publicación
+
+La ampliación de tareas independientes usa campos JSON opcionales de planificación y
+conserva el esquema versión 3; no necesita una migración SQL adicional. Se verifican
+respaldos con tareas sin relaciones, finalizaciones sin sesión, horarios y su historial,
+así como planes completados de versiones anteriores sin fecha de finalización explícita.
 
 El esquema versión 3 añade `faro_strategy`, `faro_strategy_links`,
 `faro_strategy_record_links` y `faro_strategy_history`. Las migraciones generadas

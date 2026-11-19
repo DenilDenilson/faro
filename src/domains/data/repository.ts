@@ -700,6 +700,7 @@ export async function createRepository(client: Client, options: { migrate?: bool
       projectIds: plan.projectIds,
       goalIds: plan.goalIds,
       estimatedMinutes: plan.estimatedMinutes,
+      plannedTime: plan.plannedTime,
     };
   }
   async function planningCommand(value: unknown): Promise<PlanningItem[]> {
@@ -755,12 +756,37 @@ export async function createRepository(client: Client, options: { migrate?: bool
                   ...command.data,
                   day: command.data.day,
                   estimatedMinutes: command.data.estimatedMinutes,
+                  plannedTime: command.data.plannedTime,
                   updatedAt: now,
                 },
                 before,
               ),
             );
           else await makePlan(command.data, command.data.weekStart, command.data.day);
+        }
+        if (command.action === 'check') {
+          const before = await getPlanning(tx, command.id);
+          if (before.kind !== 'plan' || before.status === 'cancelled')
+            throw new DataError('Selecciona una tarea que no esté descartada', 409);
+          if (before.activityId && !command.completed)
+            throw new DataError(
+              'Esta tarea tiene una sesión real. Consulta o edita la sesión para corregirla.',
+              409,
+            );
+          const status = command.completed ? 'completed' : 'pending';
+          if (before.status === status) return [before];
+          result.push(
+            await writePlanning(
+              tx,
+              {
+                ...before,
+                status,
+                completedAt: command.completed ? now : undefined,
+                updatedAt: now,
+              },
+              before,
+            ),
+          );
         }
         if (command.action === 'cancel' || command.action === 'complete') {
           const before = await getPlanning(tx, command.id);
@@ -772,8 +798,13 @@ export async function createRepository(client: Client, options: { migrate?: bool
               await writePlanning(tx, { ...before, status: 'cancelled', updatedAt: now }, before),
             );
           } else {
-            if (before.status === 'completed') return [before];
-            if (before.status !== 'pending') throw new DataError('La práctica fue descartada', 409);
+            if (before.status === 'completed' && before.activityId) return [before];
+            if (before.status === 'cancelled')
+              throw new DataError('La práctica fue descartada', 409);
+            if (!before.interestIds.length)
+              throw new DataError(
+                'Para registrar minutos, vincula un interés. Puedes completar la tarea sin registrar una sesión.',
+              );
             if (Date.parse(command.occurredAt) > Date.parse(now))
               throw new DataError('Registra una sesión realizada, con fecha no futura');
             const activity = await writeRecord(tx, 'activities', {
@@ -792,7 +823,13 @@ export async function createRepository(client: Client, options: { migrate?: bool
             result.push(
               await writePlanning(
                 tx,
-                { ...before, status: 'completed', activityId: activity.id, updatedAt: now },
+                {
+                  ...before,
+                  status: 'completed',
+                  activityId: activity.id,
+                  completedAt: before.completedAt ?? now,
+                  updatedAt: now,
+                },
                 before,
               ),
             );

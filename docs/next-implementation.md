@@ -43,3 +43,11 @@ con indicadores, referencias personales y mediciones; claves de poder vinculadas
 objetivos, prácticas y aprendizajes; propósito, influencia y alternativas en objetivos;
 revisiones de rumbo y campos de estrategia en las revisiones semanales. Los avances
 siguen basándose en medidas explícitas y actividad real.
+
+## Ampliación del 19 de noviembre de 2026: tareas independientes
+
+Implementada por petición del usuario: crear tareas libres desde la semana o un día, sin
+interés, hábito, proyecto, objetivo ni área obligatorios. Admiten hora y duración estimada
+opcionales, se ordenan por hora y pueden completarse o reabrirse sin registrar sesiones.
+El calendario, los filtros, las semanas tipo, la selección de pendientes y los respaldos
+conservan este flujo. Los hábitos y las métricas siguen usando sesiones reales.

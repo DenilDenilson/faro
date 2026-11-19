@@ -44,10 +44,12 @@ test('el radar guarda intenciones, permite moverlas y registra una sesión real 
 }) => {
   const { interest, habit, project, week } = await setup(context.request, 'manual');
   await page.goto(`/attention?week=${week}`);
-  await page.getByRole('button', { name: 'Nueva práctica', exact: true }).click();
+  await page.getByRole('button', { name: 'Nueva tarea', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Qué quiero hacer').fill('Practicar el riff semanal');
-  await dialog.getByRole('combobox', { name: 'Interés', exact: true }).selectOption(interest.id);
+  await dialog
+    .getByRole('combobox', { name: 'Interés (opcional)', exact: true })
+    .selectOption(interest.id);
   await dialog
     .getByRole('combobox', { name: 'Hábito (opcional)', exact: true })
     .selectOption(habit.id);
@@ -56,8 +58,8 @@ test('el radar guarda intenciones, permite moverlas y registra una sesión real 
     .selectOption(project.id);
   await dialog.getByRole('combobox', { name: 'Día', exact: true }).selectOption(addDays(week, 1));
   await dialog.getByLabel('Minutos estimados (opcional)').fill('40');
-  await dialog.getByLabel('Notas para la práctica').fill('Trabajar el cambio de cuerdas');
-  await dialog.getByRole('button', { name: 'Guardar práctica', exact: true }).click();
+  await dialog.getByLabel('Notas para la tarea').fill('Trabajar el cambio de cuerdas');
+  await dialog.getByRole('button', { name: 'Guardar tarea', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   let planned = page.getByRole('button', { name: /Previsto Practicar el riff semanal/ });
   await expect(planned).toBeVisible();
@@ -69,14 +71,14 @@ test('el radar guarda intenciones, permite moverlas y registra una sesión real 
   await expect(
     page
       .getByRole('region', { name: 'Viernes', exact: true })
-      .getByRole('button', { name: /Practicar el riff semanal/ }),
+      .getByRole('button', { name: /Previsto Practicar el riff semanal/ }),
   ).toBeVisible();
   await planned.click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Editar práctica' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Editar tarea' }).click();
   dialog = page.getByRole('dialog');
   await dialog.getByLabel('Minutos estimados (opcional)').clear();
   await dialog.getByRole('combobox', { name: 'Día', exact: true }).selectOption('');
-  await dialog.getByRole('button', { name: 'Guardar práctica', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Guardar tarea', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await page.reload();
   await page
@@ -238,4 +240,96 @@ test('el cronómetro conserva la práctica tras recargar y guarda una única ses
   const view = (await response.json()).data as PlanningView;
   expect(view.activities.filter((a) => a.name === 'Escalas con cronómetro E2E')).toHaveLength(1);
   expect(view.rhythms.find((r) => r.habit.id === habit.id)?.done).toBe(1);
+});
+
+test('planifica tareas libres por hora, completa y reabre sin exigir vínculos ni crear sesiones', async ({
+  page,
+  context,
+}) => {
+  const login = await context.request.post('/api/auth/login', {
+    headers,
+    data: { password: 'test-only-faro-password' },
+  });
+  expect(login.ok()).toBeTruthy();
+  const snapshot = (await (await context.request.get('/api/snapshot')).json()).data as FaroSnapshot;
+  const week = addDays(startOfWeek(dateKey(snapshot.generatedAt, snapshot.settings.timezone)), 21);
+  const before = (await (await context.request.get(`/api/planning?week=${week}`)).json())
+    .data as PlanningView;
+  await page.goto(`/attention?week=${week}`);
+  await page.setViewportSize({ width: 375, height: 812 });
+  async function create(name: string, time: string) {
+    await page.getByRole('button', { name: 'Añadir tarea el lunes', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Qué quiero hacer').fill(name);
+    await dialog.getByLabel('Hora (opcional)', { exact: false }).fill(time);
+    await expect(
+      dialog.getByRole('combobox', { name: 'Interés (opcional)', exact: true }),
+    ).toHaveValue('');
+    await dialog.getByRole('button', { name: 'Guardar tarea', exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+  }
+  await create('Visitar a mi abuela E2E', '17:00');
+  await create('Preparar el trabajo de mañana E2E', '08:00');
+  await page.reload();
+  const monday = page.getByRole('region', { name: 'Lunes', exact: true });
+  await expect(monday.locator('.week-entry strong')).toHaveText([
+    'Preparar el trabajo de mañana E2E',
+    'Visitar a mi abuela E2E',
+  ]);
+  await page.getByRole('combobox', { name: 'Área', exact: true }).selectOption('__none__');
+  await expect(monday.getByText('Visitar a mi abuela E2E', { exact: true })).toBeVisible();
+  await monday
+    .getByRole('button', { name: 'Marcar como completada: Visitar a mi abuela E2E', exact: true })
+    .click();
+  await expect(
+    monday.getByRole('button', { name: /Completada Visitar a mi abuela E2E/ }),
+  ).toBeVisible();
+  await page.reload();
+  await monday.getByRole('button', { name: /Completada Visitar a mi abuela E2E/ }).click();
+  let dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: 'Registrar sesión', exact: true })).toHaveCount(
+    0,
+  );
+  await dialog.getByRole('button', { name: 'Volver a pendiente', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await monday.getByRole('button', { name: /Previsto Visitar a mi abuela E2E/ }).click();
+  dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Editar tarea', exact: true }).click();
+  dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Hora (opcional)', { exact: false }).clear();
+  await dialog.getByRole('combobox', { name: 'Día', exact: true }).selectOption('');
+  await dialog.getByRole('button', { name: 'Guardar tarea', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await page.reload();
+  await page
+    .getByRole('button', {
+      name: 'Visitar a mi abuela E2E Sin duración estimada · Elegir día',
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Marcar como completada', exact: true })
+    .click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await page.getByText('Completadas sin día asignado', { exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: /Completada Visitar a mi abuela E2E/ }),
+  ).toBeVisible();
+  await page.getByLabel('Mostrar tareas completadas', { exact: true }).uncheck();
+  await expect(
+    page.getByRole('button', { name: /Completada Visitar a mi abuela E2E/ }),
+  ).toHaveCount(0);
+  const after = (await (await context.request.get(`/api/planning?week=${week}`)).json())
+    .data as PlanningView;
+  const task = after.plans.find((p) => p.name === 'Visitar a mi abuela E2E');
+  expect(task).toMatchObject({ status: 'completed', interestIds: [] });
+  expect(task?.activityId).toBeUndefined();
+  expect(task?.plannedTime).toBeUndefined();
+  expect(task?.day).toBeUndefined();
+  expect(task?.completedAt).toBeTruthy();
+  expect(after.activities).toEqual(before.activities);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
 });

@@ -12,11 +12,15 @@ export const slotSchema = z
   .object({
     name: z.string().trim().min(1, 'Escribe qué quieres hacer').max(200),
     notes: z.string().max(20000).optional(),
-    interestIds: ids.refine((value) => value.length > 0, 'Selecciona un interés'),
+    interestIds: ids.default([]),
     habitIds: ids.optional(),
     projectIds: ids.optional(),
     goalIds: ids.optional(),
     estimatedMinutes: z.number().positive().max(1440).optional(),
+    plannedTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Usa una hora entre 00:00 y 23:59')
+      .optional(),
   })
   .strict();
 export const planInputSchema = slotSchema
@@ -36,14 +40,18 @@ export const planSchema = slotSchema
     day: z.iso.date().optional(),
     status: z.enum(['pending', 'completed', 'cancelled']),
     activityId: id.optional(),
+    completedAt: z.iso.datetime().optional(),
     sourceKey: z.string().max(300).optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
     if (value.day && (value.day < value.weekStart || value.day > addDays(value.weekStart, 6)))
       ctx.addIssue({ code: 'custom', message: 'El día debe pertenecer a la semana' });
-    if ((value.status === 'completed') !== Boolean(value.activityId))
-      ctx.addIssue({ code: 'custom', message: 'Una práctica realizada necesita su sesión real' });
+    if ((value.status === 'completed') !== Boolean(value.activityId || value.completedAt))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Una tarea completada necesita su fecha o sesión real',
+      });
   });
 export const templateSchema = z
   .object({
@@ -77,6 +85,7 @@ export const planningHistorySchema = z
 export const planningCommandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('save'), id: id.optional(), data: planInputSchema }).strict(),
   z.object({ action: z.literal('cancel'), id }).strict(),
+  z.object({ action: z.literal('check'), id, completed: z.boolean() }).strict(),
   z
     .object({
       action: z.literal('complete'),

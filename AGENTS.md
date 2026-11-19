@@ -48,8 +48,12 @@ Tailwind, primitivas shadcn/Radix, Lucide y Recharts. Hosting Vercel; libSQL/Tur
 ## Planificación semanal
 
 Los planes y semanas tipo usan `faro_planning`, con relaciones e historial propios. Nunca
-tratarlos como actividades futuras, minutos reales ni cumplimiento. Completar un plan y
-crear su actividad es una única transacción con clave idempotente. No copiar sesiones al
+tratarlos como actividades futuras, minutos reales ni cumplimiento. Los vínculos son
+opcionales: una tarea puede completarse y reabrirse sin crear actividad ni sumar
+cumplimiento de hábitos. Conservar su fecha de finalización e historial. Registrar una
+sesión desde un plan exige interés y duración real y es una única transacción con clave
+idempotente; no reabrir mediante casilla un plan que ya tenga sesión. La hora prevista
+es opcional, en la zona configurada, y se conserva al reutilizar intenciones. No copiar sesiones al
 reutilizar semanas ni trasladar pendientes sin selección del usuario. Respetar períodos y
 pausas de hábitos. Incluir planificación e historial en exportaciones web y CLI; importar
 sin sobrescribir conflictos y validar relaciones antes de persistir.

@@ -4,6 +4,7 @@ import { createRepository, type FaroRepository } from '../src/domains/data/repos
 import { addDays, dateKey, startOfWeek } from '../src/domains/analytics/dates';
 import { planningView } from '../src/domains/planning';
 import type { WeekPlan, WeekTemplate } from '../src/domains/planning/types';
+import { planSchema } from '../src/domains/planning/validation';
 
 let client: Client;
 let repo: FaroRepository;
@@ -56,6 +57,133 @@ async function plan(weekStart = week()) {
   return { ...f, item: item as WeekPlan, data };
 }
 describe('planificación semanal persistente', () => {
+  it('crea tareas sin relaciones, las completa y reabre con historial sin inventar sesiones', async () => {
+    const [created] = await repo.planningCommand({
+      action: 'save',
+      data: {
+        name: 'Visitar a mi abuela',
+        weekStart: week(),
+        day: week(),
+        plannedTime: '09:30',
+      },
+    });
+    const task = created as WeekPlan;
+    expect(task.interestIds).toEqual([]);
+    await Promise.all(
+      [1, 2].map(() => repo.planningCommand({ action: 'check', id: task.id, completed: true })),
+    );
+    let saved = (await repo.listPlanning()).find((p) => p.id === task.id) as WeekPlan;
+    expect(saved).toMatchObject({ status: 'completed', plannedTime: '09:30', day: week() });
+    expect(saved.completedAt).toBeTruthy();
+    expect(saved.activityId).toBeUndefined();
+    expect(await repo.listRecords({ type: 'activities' })).toHaveLength(0);
+    expect((await repo.exportData()).planningHistory).toHaveLength(2);
+    await repo.planningCommand({ action: 'check', id: task.id, completed: false });
+    await repo.planningCommand({ action: 'check', id: task.id, completed: false });
+    saved = (await repo.listPlanning()).find((p) => p.id === task.id) as WeekPlan;
+    expect(saved.status).toBe('pending');
+    expect(saved.completedAt).toBeUndefined();
+    expect((await repo.exportData()).planningHistory).toHaveLength(3);
+    await repo.planningCommand({
+      action: 'save',
+      id: task.id,
+      data: { name: task.name, weekStart: week() },
+    });
+    saved = (await repo.listPlanning()).find((p) => p.id === task.id) as WeekPlan;
+    expect(saved.plannedTime).toBeUndefined();
+    await expect(
+      repo.planningCommand({
+        action: 'complete',
+        id: task.id,
+        name: task.name,
+        occurredAt: new Date().toISOString(),
+        durationMinutes: 10,
+      }),
+    ).rejects.toThrow('vincula un interés');
+    await repo.planningCommand({ action: 'cancel', id: task.id });
+    await expect(
+      repo.planningCommand({ action: 'check', id: task.id, completed: true }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+  it('conserva tareas libres, horarios y finalización en respaldos y reutiliza solo intenciones', async () => {
+    const [task] = await repo.planningCommand({
+      action: 'save',
+      data: {
+        name: 'Preparar propuesta',
+        weekStart: week(),
+        day: addDays(week(), 1),
+        plannedTime: '08:00',
+      },
+    });
+    await repo.planningCommand({ action: 'check', id: task!.id, completed: true });
+    const [template] = await repo.planningCommand({
+      action: 'template',
+      weekStart: week(),
+      name: 'Semana libre',
+    });
+    const next = addDays(week(), 7);
+    await repo.planningCommand({ action: 'apply', templateId: template!.id, weekStart: next });
+    const pending = (await repo.listPlanning()).find(
+      (p): p is WeekPlan => p.kind === 'plan' && p.weekStart === next,
+    )!;
+    expect(pending).toMatchObject({
+      status: 'pending',
+      plannedTime: '08:00',
+      day: addDays(next, 1),
+      interestIds: [],
+    });
+    expect(pending.completedAt).toBeUndefined();
+    expect(pending.activityId).toBeUndefined();
+    await repo.planningCommand({ action: 'copy', ids: [pending.id], weekStart: addDays(next, 7) });
+    const backup = await repo.exportData();
+    const otherClient = createClient({ url: 'file::memory:' });
+    try {
+      const other = await createRepository(otherClient);
+      const preview = await other.previewImport(backup);
+      await other.importData(backup, { digest: preview.digest });
+      expect((await other.exportData()).planning).toEqual(backup.planning);
+      expect((await other.exportData()).planningHistory).toEqual(backup.planningHistory);
+      expect(await other.listRecords({ type: 'activities' })).toHaveLength(0);
+    } finally {
+      otherClient.close();
+    }
+  });
+  it('no convierte una casilla en cumplimiento y permite registrar después una sesión real una sola vez', async () => {
+    const { item, habit } = await plan();
+    await repo.planningCommand({ action: 'check', id: item.id, completed: true });
+    const view = planningView(await repo.getSnapshot(), await repo.listPlanning(week()), week());
+    expect(view.activities).toHaveLength(0);
+    expect(view.rhythms.find((r) => r.habit.id === habit.id)?.done).toBe(0);
+    const command = {
+      action: 'complete',
+      id: item.id,
+      name: item.name,
+      occurredAt: new Date().toISOString(),
+      durationMinutes: 30,
+    };
+    await Promise.all([repo.planningCommand(command), repo.planningCommand(command)]);
+    expect(await repo.listRecords({ type: 'activities' })).toHaveLength(1);
+    await expect(
+      repo.planningCommand({ action: 'check', id: item.id, completed: false }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+  it('valida horas y estados y admite planes completados de respaldos anteriores', async () => {
+    for (const plannedTime of ['24:00', '9:30', '09:65', '12:00:00'])
+      await expect(
+        repo.planningCommand({
+          action: 'save',
+          data: { name: 'Tarea', weekStart: week(), plannedTime },
+        }),
+      ).rejects.toThrow();
+    const { item } = await plan();
+    expect(planSchema.safeParse({ ...item, status: 'completed' }).success).toBe(false);
+    expect(planSchema.safeParse({ ...item, completedAt: new Date().toISOString() }).success).toBe(
+      false,
+    );
+    expect(
+      planSchema.safeParse({ ...item, status: 'completed', activityId: 'legacy-session' }).success,
+    ).toBe(true);
+  });
   it('separa planes de sesiones, mueve y elimina estimaciones sin restaurar valores anteriores', async () => {
     const { item, data } = await plan();
     const view = planningView(await repo.getSnapshot(), await repo.listPlanning(week()), week());

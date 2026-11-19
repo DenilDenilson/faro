@@ -6,6 +6,7 @@ export interface PlanSlot {
   projectIds?: string[];
   goalIds?: string[];
   estimatedMinutes?: number;
+  plannedTime?: string;
 }
 export interface WeekPlan extends PlanSlot {
   id: string;
@@ -14,6 +15,7 @@ export interface WeekPlan extends PlanSlot {
   day?: string;
   status: 'pending' | 'completed' | 'cancelled';
   activityId?: string;
+  completedAt?: string;
   sourceKey?: string;
   createdAt: string;
   updatedAt: string;

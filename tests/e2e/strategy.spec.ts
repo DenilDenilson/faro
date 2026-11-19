@@ -251,7 +251,7 @@ test('los intereses se agrupan por área y el radar permite planificar proyectos
   await dialog
     .getByRole('combobox', { name: 'Día', exact: true })
     .selectOption({ label: 'Miércoles' });
-  await dialog.getByRole('button', { name: 'Guardar práctica', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Guardar tarea', exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await page
     .getByRole('button', { name: /Previsto Trabajar en Hito concreto del planificador E2E/ })

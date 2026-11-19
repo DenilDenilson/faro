@@ -41,7 +41,9 @@ Las intenciones se almacenan en `faro_planning` y sus relaciones e historial en 
 
 La carga prevista de un día suma solo las estimaciones conocidas y muestra por separado las prácticas sin estimación. El avance realizado usa exclusivamente sesiones reales no anuladas, con fecha hasta el instante actual. Los ritmos reutilizan los períodos de hábitos; los mensuales y por intervalo se identifican como tales. Las previsiones no reducen el intervalo real de atención de los intereses.
 
-Completar un plan guarda la actividad, sus relaciones, el estado realizado del plan y ambos historiales en una sola transacción. La clave de sesión depende del plan; los reintentos no crean otra actividad. Las semanas tipo y la selección de pendientes generan planes nuevos, sin copiar IDs de actividades ni marcar resultados. Las claves de origen evitan repetir la misma aplicación o selección a una misma semana.
+Marcar una tarea como completada solo guarda su estado y `completedAt`, con historial e idempotencia; no crea una actividad ni suma minutos o cumplimiento de hábitos. Reabrirla borra esa fecha del estado actual, conservando el historial. Todas las asociaciones son opcionales. `plannedTime` es una hora local opcional HH:mm en la zona configurada; ordena las tareas del día, con las que no tienen hora después por fecha de creación e ID. Los respaldos anteriores con sesión completada sin `completedAt` siguen siendo válidos.
+
+Registrar una sesión desde un plan guarda la actividad, sus relaciones, el estado realizado del plan y ambos historiales en una sola transacción. Exige interés y duración real, admite tareas ya marcadas sin sesión y conserva su fecha de finalización. No se permite reabrir con casilla una tarea con actividad vinculada. La clave de sesión depende del plan; los reintentos no crean otra actividad. Las semanas tipo y la selección de pendientes generan planes nuevos, sin copiar IDs de actividades ni marcar resultados. Las claves de origen evitan repetir la misma aplicación o selección a una misma semana.
 
 ## Hábitos
 

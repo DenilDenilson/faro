@@ -3,6 +3,8 @@ import { statusLabels } from './RecordForm';
 import { useEffect, useState } from 'react';
 import {
   CalendarDays,
+  Circle,
+  Clock,
   ChevronLeft,
   ChevronRight,
   Plus,
@@ -40,6 +42,7 @@ function inputFor(plan: WeekPlan): PlanDraft {
     projectIds: plan.projectIds,
     goalIds: plan.goalIds,
     estimatedMinutes: plan.estimatedMinutes,
+    plannedTime: plan.plannedTime,
   };
 }
 export default function AttentionRadar({ initialView }: { initialView: PlanningView }) {
@@ -47,6 +50,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
   const [tab, setTab] = useState('week');
   const [area, setArea] = useState('');
   const [weekends, setWeekends] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(true);
   const [workQuery, setWorkQuery] = useState('');
   const [expandedWork, setExpandedWork] = useState(false);
   const [saving, setBusy] = useState(false);
@@ -78,21 +82,46 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
   const interests = snapshot.records.filter((r) => r.type === 'interests');
   const activeInterests = interests.filter((r) => r.status === 'active');
   const areas = snapshot.records.filter((r) => r.type === 'areas');
-  const inArea = (slot: { interestIds?: string[]; areaId?: string }) =>
-    !area ||
-    slot.areaId === area ||
-    slot.interestIds?.some((id) => interests.some((r) => r.id === id && r.areaId === area));
-  const plans = view.plans.filter((p) => p.status === 'pending' && inArea(p));
+  const inArea = (slot: {
+    interestIds?: string[];
+    areaId?: string;
+    projectIds?: string[];
+    goalIds?: string[];
+    habitIds?: string[];
+  }) => {
+    const references = snapshot.records.filter((r) =>
+      [...(slot.projectIds ?? []), ...(slot.goalIds ?? []), ...(slot.habitIds ?? [])].includes(
+        r.id,
+      ),
+    );
+    const interestIds = [
+      ...(slot.interestIds ?? []),
+      ...references.flatMap((r) => r.interestIds ?? []),
+    ];
+    const linkedAreas = [
+      slot.areaId,
+      ...references.map((r) => r.areaId),
+      ...interestIds.map((id) => interests.find((r) => r.id === id)?.areaId),
+    ].filter(Boolean);
+    return !area || (area === '__none__' ? !linkedAreas.length : linkedAreas.includes(area));
+  };
+  const visiblePlans = view.plans.filter(inArea);
+  const plans = visiblePlans.filter((p) => p.status === 'pending');
+  const completedTasks = visiblePlans.filter((p) => p.status === 'completed' && !p.activityId);
+  const calendarTasks = [...plans, ...(showCompleted ? completedTasks : [])].sort(
+    (a, b) =>
+      (a.plannedTime ?? '24:00').localeCompare(b.plannedTime ?? '24:00') ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id),
+  );
   const activities = view.activities.filter(inArea);
   const rhythms = view.rhythms.filter((r) => inArea(r.habit));
   const attention = view.attention.filter(
-    (r) =>
-      ['due', 'neglected', 'insufficient'].includes(r.attention.state) &&
-      (!area || r.interest.areaId === area),
+    (r) => ['due', 'neglected', 'insufficient'].includes(r.attention.state) && inArea(r.interest),
   );
   const unplaced = plans.filter((p) => !p.day);
   const hasWeekend =
-    plans.some((p) => p.day && p.day >= addDays(weekStart, 5)) ||
+    calendarTasks.some((p) => p.day && p.day >= addDays(weekStart, 5)) ||
     activities.some((a) => dateKey(a.occurredAt ?? a.createdAt, timezone) >= addDays(weekStart, 5));
   const sourcePlans =
     closing === 'previous' ? view.previousPlans : view.plans.filter((p) => p.status === 'pending');
@@ -122,14 +151,14 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
     e.preventDefault();
     if (!draft) return;
     const { id, ...data } = draft;
-    if (await run({ action: 'save', id, data }, 'Práctica prevista guardada.')) setDraft(undefined);
+    if (await run({ action: 'save', id, data }, 'Tarea guardada.')) setDraft(undefined);
   }
   async function move(plan: WeekPlan, day?: string) {
     const { id, ...data } = inputFor(plan);
     if (
       await run(
         { action: 'save', id, data: { ...data, day } },
-        day ? 'Práctica movida.' : 'Práctica devuelta a Por ubicar.',
+        day ? 'Tarea movida.' : 'Tarea devuelta a Por ubicar.',
       )
     )
       setSelected(undefined);
@@ -147,6 +176,55 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
     setCarryIds([]);
     setClosing(mode);
     setError('');
+  }
+  function renderTask(plan: WeekPlan) {
+    const completed = plan.status === 'completed';
+    return (
+      <div className="week-task" key={plan.id}>
+        <button
+          className={`week-entry ${completed ? 'done task-completed' : 'planned'}`}
+          type="button"
+          disabled={busy}
+          draggable={!busy && !completed}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/faro-plan', plan.id);
+            e.dataTransfer.setData('text/plain', plan.id);
+          }}
+          onClick={() => {
+            setSelected(plan);
+            setLogging(false);
+            setError('');
+          }}
+        >
+          <span>{completed ? 'Completada' : 'Previsto'}</span>
+          <strong>{plan.name}</strong>
+          {plan.plannedTime && (
+            <span className="inline">
+              <Clock size={12} />
+              {plan.plannedTime}
+            </span>
+          )}
+          <span>
+            {plan.estimatedMinutes ? formatMinutes(plan.estimatedMinutes) : 'Sin duración estimada'}
+          </span>
+        </button>
+        <button
+          className="week-check"
+          type="button"
+          disabled={busy}
+          aria-label={`${completed ? 'Volver a pendiente' : 'Marcar como completada'}: ${plan.name}`}
+          onClick={() =>
+            void run(
+              { action: 'check', id: plan.id, completed: !completed },
+              completed ? 'Tarea pendiente de nuevo.' : 'Tarea completada.',
+            )
+          }
+        >
+          {completed ? <Check size={18} /> : <Circle size={18} />}
+        </button>
+      </div>
+    );
   }
   const errorNotice = error && (
     <p className="field-error" role="alert">
@@ -207,13 +285,9 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
               <a className="button subtle" href="/attention">
                 Esta semana
               </a>
-              <button
-                className="button button-primary"
-                disabled={busy || !activeInterests.length}
-                onClick={() => create()}
-              >
+              <button className="button button-primary" disabled={busy} onClick={() => create()}>
                 <Plus size={15} />
-                Nueva práctica
+                Nueva tarea
               </button>
             </div>
           </div>
@@ -222,6 +296,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
               Área
               <select value={area} onChange={(e) => setArea(e.target.value)}>
                 <option value="">Todas las áreas</option>
+                <option value="__none__">Sin área</option>
                 {areas.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
@@ -236,6 +311,14 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                 onChange={(e) => setWeekends(e.target.checked)}
               />
               Mostrar fin de semana
+            </label>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={showCompleted}
+                onChange={(e) => setShowCompleted(e.target.checked)}
+              />
+              Mostrar tareas completadas
             </label>
             <div className="button-row">
               <button
@@ -327,7 +410,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                             </div>
                             <button
                               className="button"
-                              disabled={busy || !activeInterests.length}
+                              disabled={busy}
                               aria-label={`Planificar acción para ${record.name}`}
                               onClick={() =>
                                 create(undefined, {
@@ -362,13 +445,13 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
           </section>
           {!activeInterests.length && (
             <div className="callout">
-              Para planificar, crea o reactiva un <a href="/interests">interés</a>. Tus intereses en
-              pausa siguen disponibles en «Estado de intereses».
+              Puedes organizar tu semana con tareas libres. Vincula un interés o un hábito cuando
+              quieras registrar sesiones y seguir tu práctica.
             </div>
           )}
           {!weekends && hasWeekend && (
             <button className="text-link" onClick={() => setWeekends(true)}>
-              Hay prácticas o sesiones el fin de semana. Mostrar sábado y domingo.
+              Hay tareas o sesiones el fin de semana. Mostrar sábado y domingo.
             </button>
           )}
           <div
@@ -378,6 +461,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
             {weekdays.slice(0, weekends ? 7 : 5).map((name, index) => {
               const day = addDays(weekStart, index);
               const dailyPlans = plans.filter((p) => p.day === day);
+              const dailyTasks = calendarTasks.filter((p) => p.day === day);
               const done = activities.filter(
                 (a) => dateKey(a.occurredAt ?? a.createdAt, timezone) === day,
               );
@@ -411,7 +495,12 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                     {day === today && <span className="badge">Hoy</span>}
                   </div>
                   <div className="week-day-load small muted">
-                    {dailyPlans.length} previstas
+                    {dailyPlans.length} pendientes
+                    {showCompleted && dailyTasks.some((p) => p.status === 'completed') && (
+                      <div>
+                        {dailyTasks.filter((p) => p.status === 'completed').length} completadas
+                      </div>
+                    )}
                     {estimated > 0 && <> · {formatMinutes(estimated)}</>}
                     {unknown > 0 && <div>{unknown} sin estimar</div>}
                   </div>
@@ -430,41 +519,15 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                         <span>{formatMinutes(activity.durationMinutes ?? 0)}</span>
                       </a>
                     ))}
-                    {dailyPlans.map((plan) => (
-                      <button
-                        className="week-entry planned"
-                        type="button"
-                        key={plan.id}
-                        disabled={busy}
-                        draggable={!busy}
-                        onDragStart={(e) => {
-                          e.dataTransfer.effectAllowed = 'move';
-                          e.dataTransfer.setData('text/faro-plan', plan.id);
-                          e.dataTransfer.setData('text/plain', plan.id);
-                        }}
-                        onClick={() => {
-                          setSelected(plan);
-                          setLogging(false);
-                          setError('');
-                        }}
-                      >
-                        <span>Previsto</span>
-                        <strong>{plan.name}</strong>
-                        <span>
-                          {plan.estimatedMinutes
-                            ? formatMinutes(plan.estimatedMinutes)
-                            : 'Sin duración estimada'}
-                        </span>
-                      </button>
-                    ))}
-                    {!dailyPlans.length && !done.length && (
-                      <span className="muted small">Sin prácticas</span>
+                    {dailyTasks.map(renderTask)}
+                    {!dailyTasks.length && !done.length && (
+                      <span className="muted small">Sin tareas ni sesiones</span>
                     )}
                   </div>
                   <button
                     className="week-add"
-                    aria-label={`Añadir práctica el ${name.toLowerCase()}`}
-                    disabled={busy || !activeInterests.length}
+                    aria-label={`Añadir tarea el ${name.toLowerCase()}`}
+                    disabled={busy}
                     onClick={() => create(day)}
                   >
                     <Plus size={14} />
@@ -475,8 +538,8 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
             })}
           </div>
           <p className="muted small">
-            Arrastra una práctica a otro día o ábrela para cambiar su fecha. Lo previsto cuenta al
-            registrar una sesión real.
+            Organiza tus tareas por día y hora opcional. Usa el círculo para completarlas o ábrelas
+            para ver sus detalles. Las sesiones registradas alimentan tus estadísticas de práctica.
           </p>
           <div className="week-support">
             <section>
@@ -488,8 +551,8 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
               </div>
               {!rhythms.length && (
                 <p className="muted">
-                  Puedes planificar intereses sin crear hábitos. Añade un hábito cuando quieras una
-                  meta recurrente.
+                  Puedes planificar tareas libres. Añade un hábito cuando quieras seguir una meta
+                  recurrente mediante sesiones.
                 </p>
               )}
               <div className="stack">
@@ -583,14 +646,22 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                     </button>
                   ))
                 ) : (
-                  <p className="muted">No hay prácticas pendientes de elegir día.</p>
+                  <p className="muted">No hay tareas pendientes de elegir día.</p>
                 )}
               </div>
+              {showCompleted && completedTasks.some((p) => !p.day) && (
+                <details>
+                  <summary>Completadas sin día asignado</summary>
+                  <div className="stack">
+                    {calendarTasks
+                      .filter((p) => p.status === 'completed' && !p.day)
+                      .map(renderTask)}
+                  </div>
+                </details>
+              )}
               {view.previousPlans.length > 0 && (
                 <div className="week-previous">
-                  <p>
-                    {view.previousPlans.length} prácticas quedaron pendientes la semana anterior.
-                  </p>
+                  <p>{view.previousPlans.length} tareas quedaron pendientes la semana anterior.</p>
                   <button className="text-link" onClick={() => openClosing('previous')}>
                     Elegir cuáles retomar
                   </button>
@@ -635,7 +706,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
           </section>
           {view.plans.some((p) => p.status === 'cancelled') && (
             <details>
-              <summary>Prácticas descartadas esta semana</summary>
+              <summary>Tareas descartadas esta semana</summary>
               <ul>
                 {view.plans
                   .filter((p) => p.status === 'cancelled')
@@ -653,8 +724,8 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
         onOpenChange={(open) => {
           if (!open && !busy) setDraft(undefined);
         }}
-        title={draft?.id ? 'Editar práctica prevista' : 'Nueva práctica prevista'}
-        description="Escribe qué quieres hacer. El día y la duración estimada son opcionales."
+        title={draft?.id ? 'Editar tarea prevista' : 'Nueva tarea o práctica'}
+        description="Solo necesitas un nombre. El día, la hora, la duración y todos los vínculos son opcionales."
       >
         {draft && (
           <form className="stack" onSubmit={saveDraft}>
@@ -666,13 +737,12 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                 maxLength={200}
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="Practicar cambios entre acordes"
+                placeholder="Visitar a mi abuela, trabajar en una propuesta…"
               />
             </label>
             <label className="field">
-              Interés
+              Interés (opcional)
               <select
-                required
                 value={draft.interestIds[0] ?? ''}
                 onChange={(e) =>
                   setDraft({
@@ -682,7 +752,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                   })
                 }
               >
-                <option value="">Seleccionar interés</option>
+                <option value="">Sin vincular</option>
                 {interests
                   .filter((i) => i.status === 'active' || draft.interestIds.includes(i.id))
                   .map((i) => (
@@ -737,6 +807,17 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                 </select>
               </label>
               <label className="field">
+                Hora (opcional)
+                <input
+                  type="time"
+                  value={draft.plannedTime ?? ''}
+                  onChange={(e) => setDraft({ ...draft, plannedTime: e.target.value || undefined })}
+                />
+                <span className="muted small">
+                  {timezone} · las tareas con hora se ordenan de antes a después.
+                </span>
+              </label>
+              <label className="field">
                 Minutos estimados (opcional)
                 <input
                   type="number"
@@ -779,7 +860,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
               })}
             </div>
             <label className="field">
-              Notas para la práctica
+              Notas para la tarea
               <textarea
                 maxLength={20000}
                 value={draft.notes ?? ''}
@@ -788,7 +869,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
             </label>
             {errorNotice}
             <button className="button button-primary" disabled={busy}>
-              {busy ? 'Guardando…' : 'Guardar práctica'}
+              {busy ? 'Guardando…' : 'Guardar tarea'}
             </button>
           </form>
         )}
@@ -801,11 +882,13 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
             setLogging(false);
           }
         }}
-        title={logging ? 'Registrar sesión realizada' : (selected?.name ?? 'Práctica prevista')}
+        title={logging ? 'Registrar sesión realizada' : (selected?.name ?? 'Tarea prevista')}
         description={
           logging
             ? 'Confirma lo que hiciste y su duración real.'
-            : 'Esta práctica es una intención; todavía no cuenta como sesión realizada.'
+            : selected?.status === 'completed'
+              ? 'Tarea completada. Puedes volver a dejarla pendiente si lo necesitas.'
+              : 'Completa la tarea cuando la hagas. También puedes registrar una sesión si quieres medir tu práctica.'
         }
       >
         {selected &&
@@ -886,7 +969,8 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
           ) : (
             <div className="stack">
               <p className="muted">
-                {selected.day ? formatDate(selected.day, timezone) : 'Por ubicar'} ·{' '}
+                {selected.day ? formatDate(selected.day, timezone) : 'Por ubicar'}
+                {selected.plannedTime ? ` · ${selected.plannedTime}` : ''} ·{' '}
                 {selected.estimatedMinutes
                   ? `${formatMinutes(selected.estimatedMinutes)} estimados`
                   : 'Sin duración estimada'}
@@ -908,72 +992,105 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                   </div>
                 ))}
               {selected.notes && <p className="preserve-lines">{selected.notes}</p>}
-              <div className="button-row">
-                <button
-                  className="button button-primary"
-                  disabled={busy}
-                  onClick={() => startLog(selected)}
-                >
-                  <Check size={16} />
-                  Registrar sesión
-                </button>
-                <button
-                  className="button"
-                  disabled={busy || !timerReady}
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent('faro:plan-timer', { detail: selected }));
-                    setSelected(undefined);
-                  }}
-                >
-                  <Play size={15} />
-                  Iniciar cronómetro
-                </button>
-              </div>
-              <label className="field">
-                Mover a
-                <select
-                  disabled={busy}
-                  value={selected.day ?? ''}
-                  onChange={(e) => void move(selected, e.target.value || undefined)}
-                >
-                  <option value="">Por ubicar</option>
-                  {weekdays.map((d, i) => (
-                    <option key={d} value={addDays(weekStart, i)}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="button-row">
-                <button
-                  className="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setDraft(inputFor(selected));
-                    setSelected(undefined);
-                  }}
-                >
-                  <Pencil size={15} />
-                  Editar práctica
-                </button>
-                <button
-                  className="button"
-                  disabled={busy}
-                  onClick={async () => {
-                    if (
-                      window.confirm(`¿Descartar «${selected.name}» para esta semana?`) &&
-                      (await run(
-                        { action: 'cancel', id: selected.id },
-                        'Práctica descartada para esta semana.',
-                      ))
+              {selected.completedAt && (
+                <p className="muted small">
+                  Completada el {formatDate(selected.completedAt, timezone, true)}
+                </p>
+              )}
+              <button
+                className="button button-primary"
+                disabled={busy}
+                onClick={async () => {
+                  if (
+                    await run(
+                      {
+                        action: 'check',
+                        id: selected.id,
+                        completed: selected.status !== 'completed',
+                      },
+                      selected.status === 'completed'
+                        ? 'Tarea pendiente de nuevo.'
+                        : 'Tarea completada.',
                     )
+                  )
+                    setSelected(undefined);
+                }}
+              >
+                <Check size={16} />
+                {selected.status === 'completed' ? 'Volver a pendiente' : 'Marcar como completada'}
+              </button>
+              <p className="muted small">
+                Marcar la tarea como completada no añade minutos ni cumplimiento de hábitos. Para
+                medir tu práctica, registra una sesión.
+              </p>
+              {selected.interestIds.length > 0 && (
+                <div className="button-row">
+                  <button className="button" disabled={busy} onClick={() => startLog(selected)}>
+                    <Check size={16} /> Registrar sesión
+                  </button>
+                  <button
+                    className="button"
+                    disabled={busy || !timerReady}
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent('faro:plan-timer', { detail: selected }),
+                      );
                       setSelected(undefined);
-                  }}
-                >
-                  <X size={15} />
-                  Descartar esta semana
-                </button>
-              </div>
+                    }}
+                  >
+                    <Play size={15} /> Iniciar cronómetro
+                  </button>
+                </div>
+              )}
+              {selected.status === 'pending' && (
+                <>
+                  <label className="field">
+                    Mover a
+                    <select
+                      disabled={busy}
+                      value={selected.day ?? ''}
+                      onChange={(e) => void move(selected, e.target.value || undefined)}
+                    >
+                      <option value="">Por ubicar</option>
+                      {weekdays.map((d, i) => (
+                        <option key={d} value={addDays(weekStart, i)}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="button-row">
+                    <button
+                      className="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setDraft(inputFor(selected));
+                        setSelected(undefined);
+                      }}
+                    >
+                      <Pencil size={15} />
+                      Editar tarea
+                    </button>
+                    <button
+                      className="button"
+                      disabled={busy}
+                      onClick={async () => {
+                        if (
+                          window.confirm(`¿Descartar «${selected.name}» para esta semana?`) &&
+                          (await run(
+                            { action: 'cancel', id: selected.id },
+                            'Tarea descartada para esta semana.',
+                          ))
+                        )
+                          setSelected(undefined);
+                      }}
+                    >
+                      <X size={15} />
+                      Descartar esta semana
+                    </button>
+                  </div>
+                </>
+              )}
               {errorNotice}
             </div>
           ))}
@@ -984,7 +1101,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
           if (!busy) setTemplatesOpen(open);
         }}
         title="Semanas tipo"
-        description="Reutiliza la distribución de tus prácticas. Las sesiones realizadas no se copian."
+        description="Reutiliza tus tareas y prácticas. Se crean pendientes; las sesiones y las marcas de completado no se copian."
       >
         <div className="stack">
           <form
@@ -1024,7 +1141,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                 <div>
                   <strong>{t.name}</strong>
                   <p className="muted small">
-                    {t.slotCount} prácticas · se aplicará a la semana visible
+                    {t.slotCount} tareas · se aplicará a la semana visible
                   </p>
                 </div>
                 <div className="button-row">
@@ -1035,7 +1152,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
                       if (
                         await run(
                           { action: 'apply', templateId: t.id, weekStart },
-                          'Semana tipo aplicada. Revisa y ajusta tus prácticas.',
+                          'Semana tipo aplicada. Revisa y ajusta tus tareas.',
                         )
                       )
                         setTemplatesOpen(false);
@@ -1084,7 +1201,8 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
             <p>
               {view.activities.length} sesiones realizadas ·{' '}
               {formatMinutes(view.activities.reduce((n, a) => n + (a.durationMinutes ?? 0), 0))} ·{' '}
-              {sourcePlans.length} prácticas pendientes.
+              {view.plans.filter((p) => p.status === 'completed' && !p.activityId).length} tareas
+              completadas · {sourcePlans.length} tareas pendientes.
             </p>
           )}
           <a
@@ -1100,7 +1218,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
           {sourcePlans.length > 0 ? (
             <>
               <p>
-                Selecciona las prácticas que quieres retomar en la semana del{' '}
+                Selecciona las tareas que quieres retomar en la semana del{' '}
                 {formatDate(targetWeek, timezone)}.
               </p>
               {sourcePlans.map((p) => (
@@ -1137,7 +1255,7 @@ export default function AttentionRadar({ initialView }: { initialView: PlanningV
             </>
           ) : (
             <p className="muted">
-              No hay prácticas pendientes. Puedes preparar la próxima semana con una semana tipo.
+              No hay tareas pendientes. Puedes preparar la próxima semana con una semana tipo.
             </p>
           )}
           <a className="text-link" href={`/attention?week=${targetWeek}`}>
